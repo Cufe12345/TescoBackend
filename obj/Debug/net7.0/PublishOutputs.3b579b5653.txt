@@ -1,0 +1,12 @@
+C:\Users\Callu\Documents\University\TescoTest\bin\Debug\net7.0\publish\TescoTest.exe
+C:\Users\Callu\Documents\University\TescoTest\bin\Debug\net7.0\publish\TescoTest.dll
+C:\Users\Callu\Documents\University\TescoTest\bin\Debug\net7.0\publish\TescoTest.deps.json
+C:\Users\Callu\Documents\University\TescoTest\bin\Debug\net7.0\publish\TescoTest.runtimeconfig.json
+C:\Users\Callu\Documents\University\TescoTest\bin\Debug\net7.0\publish\TescoTest.pdb
+C:\Users\Callu\Documents\University\TescoTest\bin\Debug\net7.0\publish\Newtonsoft.Json.dll
+C:\Users\Callu\Documents\University\TescoTest\bin\Debug\net7.0\publish\System.Data.SqlClient.dll
+C:\Users\Callu\Documents\University\TescoTest\bin\Debug\net7.0\publish\runtimes\win-arm64\native\sni.dll
+C:\Users\Callu\Documents\University\TescoTest\bin\Debug\net7.0\publish\runtimes\win-x64\native\sni.dll
+C:\Users\Callu\Documents\University\TescoTest\bin\Debug\net7.0\publish\runtimes\win-x86\native\sni.dll
+C:\Users\Callu\Documents\University\TescoTest\bin\Debug\net7.0\publish\runtimes\unix\lib\netcoreapp2.1\System.Data.SqlClient.dll
+C:\Users\Callu\Documents\University\TescoTest\bin\Debug\net7.0\publish\runtimes\win\lib\netcoreapp2.1\System.Data.SqlClient.dll
