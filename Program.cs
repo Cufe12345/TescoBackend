@@ -12,42 +12,155 @@ using static Google.Cloud.Firestore.V1.StructuredQuery.Types;
 using System.Collections;
 //using System.Web.Script.Serialization;
 
-namespace TescoTest // Note: actual namespace depends on the project name.
+namespace TescoTest 
 {
 	internal class Program
     {
-        static string path = AppDomain.CurrentDomain.BaseDirectory + @"cufe12345-tescowebsite-firebase-adminsdk-1fdk2-d3bf6e6cb3.json";
+        //Firebase database credentials
+        static string path = AppDomain.CurrentDomain.BaseDirectory + @"YOURCREDENTIALS OF YOUR FIREBASE.json";
         static FirestoreDb db;
 
         public static HttpClient client;
         static bool runServer = true;
         public static HttpListener listener;
+
+        //Setting the port/s to connect to the backend server on
         public static string[] url = {"http://*:8080/","https://*:8443/"};
+        public static bool complete = false;
+
+        
         static void Main(string[] args)
         {
+            //Connect to the database
 			Environment.SetEnvironmentVariable("GOOGLE_APPLICATION_CREDENTIALS", path);
 			 db = FirestoreDb.Create("cufe12345-tescowebsite");
-			//Testing();
-			//var task = TestIfOnlineAsync();
-			//int i = 0;
-			//while (i <= 10) { 
-			//     FetchProducts(1); 
-			//      i++;
-			//      Thread.Sleep(2000);
-			//  }
-			StartServer();
-			// Console.Write(RemoveProduct(1, 264625916, 1));
-			// Console.WriteLine(AddToOrder(264625916, 1, 1,"test","pizza"));
-			//  Console.WriteLine(AddToCart(4));
-			//Console.WriteLine(PutRequest(264625916, "pizza"));
-
-			while (true)
+            //Testing();
+            if (args.Length != 0)
             {
-                int a = 0;
+                if (args[0].ToUpper() == "-O" || args[0].ToUpper() == "-A" || args[0].ToUpper() == "-T" || args[0].ToUpper() == "-H")
+                {
+                    Menu(args);
+                }
             }
+            else
+            {
+                StartServer();
+            }
+                while (!complete)
+                {
+                    int a = 0;
+                }
+            
         }
 
-        async public static void Testing()
+		/// <summary>
+		/// Method <c>Menu</c> Uses the arguments provided to do specific actions chosen
+		/// </summary>
+		async public static void Menu(string[] args)
+        {
+            //Adds order to database with the name in args[1] eg if you want the order "First Order" added to front end website
+			if (args[0].ToUpper() == "-O")
+			{
+				Console.WriteLine(await AddOrder(args[1]));
+			}
+            //Adds the order provided's content to the tesco websites basket 
+			else if (args[0].ToUpper() == "-A")
+			{
+				
+                Console.WriteLine("Enter Cookie");
+                string Cookie = Console.ReadLine();
+				Console.WriteLine("Enter cookie");
+				string cookie = Console.ReadLine();
+				Console.WriteLine("Enter x-csrf-token");
+				string x_csrf_token = Console.ReadLine();
+                List<string> parameters = new List<string>
+                {
+                    Cookie,cookie,x_csrf_token
+                };
+                Console.WriteLine(parameters[0]);
+				Console.WriteLine(await AddToCart(args[1],parameters));
+
+			}
+            //Displays the total of the order provide ie args[1]
+            else if (args[0].ToUpper() == "-T")
+            {
+                Console.WriteLine(await Total(args[1]));
+            }
+            //Tells the user what each argument is and does
+            else if (args[0].ToUpper() == "-H")
+            {
+                Console.WriteLine("-T Total, -A add to cart, -O add order");
+            }
+            complete = true;
+		}
+		/// <summary>
+		/// Method <c>Total</c> Uses the <paramref name="orderId"/> to fetch all the products and gives a total for every user who has items on the order and overall total
+		/// </summary>
+		async public static Task<int> Total(string orderId)
+        {
+            //Fetches all products on order
+            List<object> products = await GetProducts(orderId);
+            double total = 0;
+            Dictionary<string, double> people = new Dictionary<string, double>();
+            if (products[0] == "null")
+            {
+                return -1;
+            }
+            try
+            {
+                //Iterates over all products
+                List<object> addedProducts = new List<object>();
+                for (int i = 0; i < products.Count; i++)
+                {
+                    object product = (object)products[i];
+                    double price = 0;
+                    string owner = "";
+
+                    //Goes through the fields on this product and extracts the owner and price
+                    foreach (KeyValuePair<string, object> fields in (Dictionary<string, object>)product)
+                    {
+                        if(fields.Key == "price")
+                        {
+                            price = double.Parse(fields.Value.ToString());
+                        }
+                        if(fields.Key == "owner")
+                        {
+                            owner = fields.Value.ToString();
+                        }
+                    }
+                    try
+                    {
+                        if(price == 0)
+                        {
+                            return -1;
+                        }
+                        //if the person exists in the dict just add to total otherwise add the person to the dictionary with the products price
+                        people[owner] += price;
+                        total += price;
+                    }
+                    catch (Exception)
+                    {
+                        people.Add(owner, price);
+                        total += price;
+                    }
+                }
+            }
+            catch (Exception)
+            {
+                return -1;
+            }
+            foreach(string person in people.Keys)
+            {
+                Console.WriteLine(person+" total: " + people[person].ToString());
+            }
+            Console.WriteLine("Total is: " + total.ToString());
+            return 0;
+
+        }
+		/// <summary>
+		/// Method <c>Testing</c> Test if connected to the database correctly
+		/// </summary>
+		async public static void Testing()
         {
 			DocumentReference docRef = db.Collection("users").Document();
 			Dictionary<string, object> user = new Dictionary<string, object>
@@ -58,7 +171,11 @@ namespace TescoTest // Note: actual namespace depends on the project name.
             };
 			await docRef.SetAsync(user);
 		}
-        public static void TestServer()
+
+		/// <summary>
+		/// Method <c>TestServer</c> Test if server was started properly by sending POST request to it
+		/// </summary>
+		public static void TestServer()
         {
             var httpWebRequest = (HttpWebRequest)WebRequest.Create("http://20.68.14.122:8080");
             httpWebRequest.Method = "POST";
@@ -77,7 +194,10 @@ namespace TescoTest // Note: actual namespace depends on the project name.
             }
         }
 
-        public static void StartServer()
+		/// <summary>
+		/// Method <c>StartServer</c> Starts the server and listens on ports provided
+		/// </summary>
+		public static void StartServer()
         {
             // Create a Http server and start listening for incoming connections
             listener = new HttpListener();
@@ -94,7 +214,10 @@ namespace TescoTest // Note: actual namespace depends on the project name.
             // Close the listener
             listener.Close();
         }
-        public static async Task HandleIncomingConnections()
+		/// <summary>
+		/// Task <c>HandleIncomingConnections</c> When a POST request is recieved depending on what data was sent will do the associated actions and return the result back to the frontend
+		/// </summary>
+		public static async Task HandleIncomingConnections()
         {
             while (runServer)
             {
@@ -105,6 +228,7 @@ namespace TescoTest // Note: actual namespace depends on the project name.
                 
                 Console.WriteLine("RECIEVED");
                 Console.WriteLine(req.HttpMethod);
+                //Options the request needs to follow
                 if (req.HttpMethod == "OPTIONS")
                 {
                     response.AddHeader("Access-Control-Allow-Headers", "Content-Type, Accept, X-Requested-With");
@@ -114,23 +238,26 @@ namespace TescoTest // Note: actual namespace depends on the project name.
                 }
                 else if(req.HttpMethod == "POST")
                 {
+                    //Needed for CORS reasons otherwise frontend not happy
                     response.AppendHeader("Access-Control-Allow-Origin", "*");
                     Console.WriteLine("{\"Data\": \"WORKED\"}");
+                    
                     byte[] data = null;
                     using (System.IO.Stream body = req.InputStream) // here we have data
                     {
                         using (var reader = new System.IO.StreamReader(body, req.ContentEncoding))
                         {
+                            //Extracts the data in request into values ie values[0] is what you want to do ie SEARCH , CREATE then values[1] is the data associated with the action eg SEARCH Pizza values[1] = Pizza
                             string requestString = reader.ReadToEnd();
                             
                             bool val = false;
                             bool startReading = false;
                             string temp = "";
                             List<string> values = new List<string>();
-                         
+                            string previousChar = "";
                             foreach(char c in requestString)
                             {
-                                if(c.ToString() == ":")
+                                if(c.ToString() == ":" && previousChar !="s")
                                 {
                                     val = true;
                                     startReading = false;
@@ -153,12 +280,15 @@ namespace TescoTest // Note: actual namespace depends on the project name.
                                         temp += c.ToString();
                                     }
                                 }
+                                previousChar = c.ToString();
                             }
                             Console.WriteLine("Type: " + values[0]);
                             if (values[0] == "SEARCH")
                             {
                                 if (values[1] != " ")
                                 {
+                                    //Fetches all products returned from the search of values[1] on tescos website
+                                    //Returns it as JSON objects back to the front end
                                     List<List<string>> postResults = PostRequest(values[1]);
                                     if (postResults != null)
                                     {
@@ -201,8 +331,8 @@ namespace TescoTest // Note: actual namespace depends on the project name.
                                             }
                                             if (postResults[4][i] != "null" && postResults[4][i] != "null2")
                                             {
-                                                generatedResponse += "{\"price\" : \"" + finalPrice +" / "+postResults[4][i]+" ClubCard\",";
-                                                
+                                                generatedResponse += "{\"price\" : \"" + finalPrice + " / " + postResults[4][i] + " ClubCard\",";
+
                                             }
                                             else if (postResults[4][i] == "null2")
                                             {
@@ -222,6 +352,7 @@ namespace TescoTest // Note: actual namespace depends on the project name.
                                 }
 
                             }
+                            //Used to create accounts on the database
                             else if (values[0] == "CREATE")
                             {
                                 string username = "";
@@ -245,12 +376,13 @@ namespace TescoTest // Note: actual namespace depends on the project name.
                                         password += c.ToString();
                                     }
                                 }
+                                //returns if successful or not and if not what was wrong ie not unique username etc
                                 int value = await CreateAccount(username, password);
                                 data = Encoding.UTF8.GetBytes("{ \"Result\": \"" + value.ToString() + "\"}");
                             }
+                            //Logs the user in or returns error value if invalid credentials provided
                             else if (values[0] == "LOGIN")
                             {
-                                Console.WriteLine("Content: " + values[1]);
                                 string username = "";
                                 string password = "";
                                 bool first = true;
@@ -273,9 +405,9 @@ namespace TescoTest // Note: actual namespace depends on the project name.
                                     }
                                 }
                                 List<object> value = await Login(username, password);
-                                Console.WriteLine("RESPONSE: "+value[0].ToString());
-                                data = Encoding.UTF8.GetBytes("[{ \"Result\": \"" + value[0].ToString() + "\"}, {\"Name\": \"" + value[1].ToString() + "\"}]");
+                                data = Encoding.UTF8.GetBytes("[{ \"Result\": \"" + value[0].ToString() + "\"}, {\"Name\": \"" + value[1].ToString() + "\"}, {\"admin\":\"" + value[2].ToString() + "\"}]");
                             }
+                            //Fetches all orders in database and returns as JSON object to front end
                             else if (values[0] == "FETCH_ORDERS")
                             {
                                 List<List<string>> orders = await FetchOrders();
@@ -302,18 +434,25 @@ namespace TescoTest // Note: actual namespace depends on the project name.
                                     data = Encoding.UTF8.GetBytes(generatedResponse);
                                 }
                             }
+                            //adds product to order in database
                             else if (values[0] == "ADD")
                             {
+
+                                //handles the extraction of all data into individual variables ie orderId userId etc
                                 string word = "";
                                 int id = -1;
                                 float cost = -1;
                                 string orderId = "-1";
                                 string userId = "-1";
                                 string query = "null";
+                                string name = "null";
+                                string image = "null";
                                 bool first = true;
                                 bool second = true;
                                 bool third = true;
                                 bool fourth = true;
+                                bool five = true;
+                                bool six = true;
                                 foreach (char c in values[1])
                                 {
                                     if (first)
@@ -341,14 +480,14 @@ namespace TescoTest // Note: actual namespace depends on the project name.
                                                 bool space = false;
                                                 string initialPrice = "";
                                                 int indexPrice = 0;
-                                                foreach(char ch in word)
+                                                foreach (char ch in word)
                                                 {
-                                                    if(indexPrice < 4)
+                                                    if (indexPrice < 4)
                                                     {
                                                         initialPrice += ch;
                                                         indexPrice++;
                                                     }
-                                                    if(ch.ToString() == "/")
+                                                    if (ch.ToString() == "/")
                                                     {
                                                         slash = true;
                                                     }
@@ -363,7 +502,7 @@ namespace TescoTest // Note: actual namespace depends on the project name.
                                                         }
                                                         else
                                                         {
-                                                            if(ch.ToString() == " ")
+                                                            if (ch.ToString() == " ")
                                                             {
                                                                 break;
                                                             }
@@ -380,7 +519,7 @@ namespace TescoTest // Note: actual namespace depends on the project name.
                                                     word = initialPrice;
                                                 }
                                             }
-                                                cost = float.Parse(word);
+                                            cost = float.Parse(word);
                                             word = "";
                                         }
                                         else
@@ -421,6 +560,32 @@ namespace TescoTest // Note: actual namespace depends on the project name.
                                             word += c.ToString();
                                         }
                                     }
+                                    else if (five)
+                                    {
+                                        if (c.ToString() == ",")
+                                        {
+                                            five = false;
+                                            query = word.ToString();
+                                            word = "";
+                                        }
+                                        else
+                                        {
+                                            word += c.ToString();
+                                        }
+                                    }
+                                    else if (six)
+                                    {
+                                        if (c.ToString() == ",")
+                                        {
+                                            six = false;
+                                            name = word.ToString();
+                                            word = "";
+                                        }
+                                        else
+                                        {
+                                            word += c.ToString();
+                                        }
+                                    }
                                     else
                                     {
 
@@ -429,15 +594,17 @@ namespace TescoTest // Note: actual namespace depends on the project name.
                                     }
 
                                 }
-                                query = word;
+                                image = word;
                                 word = "";
-                                if (id == -1 || cost == -1 || orderId == "-1" || userId == "-1" || query == "null")
+                                if (id == -1 || cost == -1 || orderId == "-1" || userId == "-1" || query == "null" || name == "null" || image == "null")
                                 {
 
                                 }
                                 else
                                 {
-                                    int result = await AddToOrderV2(id, cost, orderId, userId, query);
+                                    //Attempts to add product to order in database
+                                    //Returns result to frontend
+                                    int result = await AddToOrderV2(id, cost, orderId, userId, query, name, image);
 
                                     string generatedResponse = "";
                                     generatedResponse += "{\"result\" : " + result + "}";
@@ -446,64 +613,84 @@ namespace TescoTest // Note: actual namespace depends on the project name.
 
                                 }
                             }
+                            //Fetches the products for an order ie the basket
                             else if (values[0] == "BASKET")
                             {
-                                if (values[1] != null && values[1] != "No order")
+                                string orderId = "";
+                                string name = "";
+                                string current = "";
+                                for(int j = 0; j < values[1].Length; j++)
                                 {
-                                    List<List<string>> postResults = await FetchProducts(values[1]);
-                                    List<string> userNames = postResults[postResults.Count-1];
-                                    if (postResults != null && postResults[0][0] != "-1")
+                                    if (values[1][j].ToString() == ",")
                                     {
-                                        string generatedResponse = "[";
-                                        bool first = true;
-                                        for (int i = 0; i < postResults.Count-1; i++)
+                                        orderId = current;
+                                        current = "";
+
+                                    }
+                                    else
+                                    {
+                                        current += values[1][j].ToString();
+                                    }
+                                }
+                                name = current;
+                                if (!(name == "" || orderId == ""))
+                                {
+
+
+
+                                    if (orderId != null && orderId != "No order")
+                                    {
+                                        List<List<string>> postResults = await FetchProducts(orderId,name);
+                                        if (postResults != null && postResults[0][0] != "-1")
                                         {
-                                            if (!first)
+                                            string generatedResponse = "[";
+                                            bool first = true;
+                                            for (int i = 0; i < postResults[0].Count; i++)
                                             {
-                                                generatedResponse += ",";
+                                                if (first)
+                                                {
+                                                    first = false;
+                                                }
+                                                else
+                                                {
+                                                    generatedResponse += ",";
+                                                }
+                                                float price = float.Parse(postResults[1][i]);
+                                                string finalPrice = price.ToString();
+                                                bool hasDot = false;
+                                                int count = 0;
+                                                foreach (char c in finalPrice)
+                                                {
+                                                    if (c.ToString() == ".")
+                                                    {
+                                                        hasDot = true;
+                                                    }
+                                                    else if (hasDot)
+                                                    {
+                                                        count++;
+                                                    }
+                                                }
+                                                if (!hasDot)
+                                                {
+                                                    finalPrice += ".00";
+                                                }
+                                                else if (count != 2)
+                                                {
+                                                    finalPrice += "0";
+                                                }
+                                                generatedResponse += "{\"price\" : \"" + finalPrice + "\",";
+                                                generatedResponse += " \"title\" : \"" + postResults[0][i] + "\'s " + postResults[3][i] + "\",";
+                                                generatedResponse += " \"id\" : \"" + postResults[2][i] + "\",";
+                                                generatedResponse += " \"image\" : \"" + postResults[4][i] + "\"}";
 
                                             }
-                                            else
-                                            {
-                                                first = false;
-                                            }
-                                            float price = float.Parse(postResults[i][1]);
-                                            if (postResults[i][4] != "null" && postResults[i][4] != "null2")
-                                            {
-                                                price = float.Parse(postResults[i][4]);
-                                            }
-                                            string finalPrice = price.ToString();
-                                            bool hasDot = false;
-                                            int count = 0;
-                                            foreach (char c in finalPrice)
-                                            {
-                                                if (c.ToString() == ".")
-                                                {
-                                                    hasDot = true;
-                                                }
-                                                else if (hasDot)
-                                                {
-                                                    count++;
-                                                }
-                                            }
-                                            if (!hasDot)
-                                            {
-                                                finalPrice += ".00";
-                                            }
-                                            else if (count != 2)
-                                            {
-                                                finalPrice += "0";
-                                            }
-                                            generatedResponse += "{\"price\" : \"" + finalPrice + "\",";
-                                            generatedResponse += " \"title\" : \"" + userNames[i] +"\'s "+ postResults[i][0] + "\",";
-                                            generatedResponse += " \"id\" : \"" + postResults[i][3] + "\",";
-                                            generatedResponse += " \"image\" : \"" + postResults[i][2] + "\"}";
+                                            generatedResponse += "]";
+                                            data = Encoding.UTF8.GetBytes(generatedResponse);
                                         }
-                                        generatedResponse += "]";
-                                        data = Encoding.UTF8.GetBytes(generatedResponse);
                                     }
                                 }
                             }
+                            //Removes a product from an order
                             else if (values[0] == "REMOVE")
                             {
                                 string requestV = values[1];
@@ -515,7 +702,7 @@ namespace TescoTest // Note: actual namespace depends on the project name.
                                 bool second = true;
                                 bool third = true;
                                 string word = "";
-                                foreach(char c in requestV)
+                                foreach (char c in requestV)
                                 {
                                     if (first)
                                     {
@@ -564,15 +751,16 @@ namespace TescoTest // Note: actual namespace depends on the project name.
 
                                     }
                                 }
-                                userId= (word);
+                                userId = (word);
                                 if (price != -1 && id != -1 && orderId != "-1" && userId != "-1")
                                 {
-                                    int result = await RemoveProduct(price, id, orderId,userId);
+                                    int result = await RemoveProduct(price, id, orderId, userId);
                                     string generatedResponse = "";
                                     generatedResponse += "{\"result\" : " + result + "}";
                                     data = Encoding.UTF8.GetBytes(generatedResponse);
                                 }
                             }
+                            //Gets the total of an order
                             else if (values[0] == "PRICE")
                             {
                                 string orderId = "-1";
@@ -582,7 +770,7 @@ namespace TescoTest // Note: actual namespace depends on the project name.
                                 }
                                 catch (Exception)
                                 {
-                                    
+
                                 }
                                 if (orderId != "-1")
                                 {
@@ -613,6 +801,7 @@ namespace TescoTest // Note: actual namespace depends on the project name.
                                 }
 
                             }
+                            //Get the total of a specific user for the order
                             else if (values[0] == "USER_PRICE")
                             {
                                 string orderId = "-1";
@@ -643,12 +832,147 @@ namespace TescoTest // Note: actual namespace depends on the project name.
                                 {
                                     orderId = word;
                                 }
-                                if(orderId != "-1" && user != "-1")
+                                if (orderId != "-1" && user != "-1")
                                 {
                                     double price = await GetUserPrice(user, orderId);
+                                    price = Math.Round(price, 2);
                                     data = Encoding.UTF8.GetBytes("{ \"Result\": \"" + price.ToString() + "\"}");
                                 }
                             }
+                            //Check if user has admin rights
+                            else if (values[0] == "CHECK_ADMIN")
+                            {
+                                bool result = await CheckAdmin(values[1]);
+                                data = Encoding.UTF8.GetBytes("{\"Result\":\"" + result + "\"}");
+
+                            }
+                            
+                            //Updates products with new ones ie replacing product with different one. the front end will call this then also a delete POST request to delete the old object, shouldnt probably do this this method should handle both aspects
+                            else if (values[0] == "UPDATE_PRODUCT")
+                            {
+                                string query = "";
+                                string id = "";
+                                string orderId = "";
+                                string username = "";
+                                string word = "";
+                                bool first = false;
+                                bool second = false;
+                                foreach (char c in values[1])
+                                {
+                                    if (c.ToString() == ",")
+                                    {
+                                        if (!first)
+                                        {
+                                            query = word;
+                                            word = "";
+                                            first = true;
+                                        }
+                                        else if (!second)
+                                        {
+                                            id = word;
+                                            word = "";
+                                            second = true;
+                                        }
+                                        else
+                                        {
+                                            orderId = word;
+                                            word = "";
+                                        }
+                                    }
+                                    else
+                                    {
+                                        word += c.ToString();
+                                    }
+                                }
+                                username = word;
+                                int result = await UpdateProduct(query, id, orderId, username);
+                                data = Encoding.UTF8.GetBytes("{\"Result\":\"" + result + "\"}");
+
+                            }
+
+                            //Fetch Names of people with items in the order provided
+                            else if (values[0] == "NAMES")
+                            {
+                                List<string> result = await FetchNames(values[1]);
+                                if (result[0] != "-1")
+                                {
+
+
+                                    string final = "{\"Result\":[";
+                                    bool first = true;
+                                    foreach (string name in result)
+                                    {
+                                        if (first)
+                                        {
+                                            first = false;
+                                        }
+                                        else
+                                        {
+                                            final += ",";
+                                        }
+                                        final += "\"" + name + "\"";
+                                    }
+                                    final += "]}";
+
+
+                                    data = Encoding.UTF8.GetBytes(final);
+                                }
+                            
+                            }
+
+                            //Add delivery fee to a specific user
+                            else if (values[0] == "ADD_DELIVERY")
+                            {
+                                string orderId = "";
+                                string name = "";
+                                string price = "";
+                                bool first = true;
+                                string current = "";
+                                for(int i = 0; i < values[1].Length; i++)
+                                {
+                                    if (values[1][i].ToString() == ",")
+                                    {
+                                        if (first)
+                                        {
+                                            first = false;
+                                            orderId = current;
+                                            current = "";
+                                        }
+                                        else
+                                        {
+                                            name = current;
+                                            current = "";
+                                        }
+                                    }
+                                    else
+                                    {
+                                        current += values[1][i].ToString();
+                                    }
+
+                                }
+                                price = current;
+                                if(!(orderId ==""|| name ==""|| price == ""))
+                                {
+                                    int result = -1;
+                                    try
+                                    {
+                                        result = await AddDelivery(orderId, name, float.Parse(price));
+                                    }
+                                    catch (Exception e)
+                                    {
+                                        Console.WriteLine(e);
+                                    }
+									data = Encoding.UTF8.GetBytes("{\"Result\":\"" + result + "\"}");
+								}
+                            }
+
+                            //Add order to database with specified name
+                            else if (values[0] == "ADD_ORDER")
+                            {
+                                int result = await AddOrder(values[1]);
+                                Console.WriteLine(result+" : " + values[1]);
+                                data = Encoding.UTF8.GetBytes("{\"Result\":\"" + result + "\"}");
+							}
                         }
                     }
                     if (data == null)
@@ -656,7 +980,7 @@ namespace TescoTest // Note: actual namespace depends on the project name.
                         data = Encoding.UTF8.GetBytes(String.Format("{{\"Data\": \"Error\"}}"));
                     }
 
-                    //application/json
+                    //Sends response to the frontend
                     response.ContentType = "application/json";
                     response.ContentEncoding = Encoding.UTF8;
                     response.ContentLength64 = data.LongLength;
@@ -665,7 +989,11 @@ namespace TescoTest // Note: actual namespace depends on the project name.
                 }
             }
         }
-        public static async Task<int> CreateAccount(string username,string password)
+
+		/// <summary>
+		/// Task <c>CreateAccount</c> Checks if the account can be created ie username not taken then calls SQLCreateAccount
+		/// </summary>
+		public static async Task<int> CreateAccount(string username,string password)
         {
             bool result = await SQLCheckAccount(username);
             if (!result)
@@ -677,8 +1005,13 @@ namespace TescoTest // Note: actual namespace depends on the project name.
                 return -1;
             }
         }
-        public static List<List<string>>PostRequest(string itemName)
+
+		/// <summary>
+		/// Method <c>PostRequest</c> Makes a POST request to tesco using the <paramref name="itemName"/> to search for that item as if you were on their website
+		/// </summary>
+		public static List<List<string>>PostRequest(string itemName)
         {
+            //Replicating the request that would be sent if you searched on the tesco website but adds the itemName passed from our tesco frontend
             var httpWebRequest = (HttpWebRequest)WebRequest.Create("https://www.tesco.com/groceries/en-GB/resources");
             httpWebRequest.Method = "POST";
             httpWebRequest.Headers["authority"] = "www.tesco.com";
@@ -736,7 +1069,11 @@ namespace TescoTest // Note: actual namespace depends on the project name.
                 return null;
             }
         }
-        public static List<List<string>> ExtractData(string data)
+
+		/// <summary>
+		/// Method <c>ExtractData</c> The old way of extracting the products from the search result performed by PostRequest. This method doesnt use Newtonsoft libary but is less effecient
+		/// </summary>
+		public static List<List<string>> ExtractData(string data)
         {
             bool titleB = false;
             bool priceB = false;
@@ -982,7 +1319,10 @@ namespace TescoTest // Note: actual namespace depends on the project name.
             return temp;
         }
 
-        public static List<List<string>> ExtractDataV2(string data)
+		/// <summary>
+		/// Method <c>ExtractDataV2</c> The new way of extracting the products from the search result performed by PostRequest. This method does use Newtonsoft libary and is more effecient
+		/// </summary>
+		public static List<List<string>> ExtractDataV2(string data)
         {
 
             List<string> items = new List<string>();
@@ -1040,6 +1380,16 @@ namespace TescoTest // Note: actual namespace depends on the project name.
                                         final += c.ToString();
                                     }
                                 }
+                            }
+                            if (!startPrice)
+                            {
+                                string tempPrice = firstThree;
+                                string tempPrice2 = "";
+                                for(int i = 0; i < tempPrice.Length-1; i++)
+                                {
+                                    tempPrice2 += tempPrice[i].ToString();
+                                }
+                                final = "0." + tempPrice2;
                             }
                             if (firstThree != "any" && firstFive != "tesco")
                             {
@@ -1115,7 +1465,11 @@ namespace TescoTest // Note: actual namespace depends on the project name.
             temp4.Add(clubPrices);
             return temp4;
         }
-        public static int SQLCreateAccount(string username,string password)
+
+		/// <summary>
+		/// Method <c>SQLCreateAccount</c> Passes username and password to Create Method and returns 0 or -2 depending on outcome
+		/// </summary>
+		public static int SQLCreateAccount(string username,string password)
         {
             try
             {
@@ -1126,7 +1480,11 @@ namespace TescoTest // Note: actual namespace depends on the project name.
             }
             return 0;
         }
-        public static async void Create(string username,string password)
+
+		/// <summary>
+		/// Method <c>Create</c> Adds the user to the database
+		/// </summary>
+		public static async void Create(string username,string password)
         {
 			DocumentReference docRef = db.Collection("users").Document();
 			Dictionary<string, object> user = new Dictionary<string, object>
@@ -1134,12 +1492,16 @@ namespace TescoTest // Note: actual namespace depends on the project name.
 				{ "username", username },
 				{ "password", password },
 				{ "orderId","null" },
-                {"real",true }
+                {"real",true },
+                {"admin",false }
 			};
 			await docRef.SetAsync(user);
 		}
-        
-        public static async Task<bool> SQLCheckAccount(string username)
+
+		/// <summary>
+		/// Method <c>SQLCheckAccount</c> Checks if the username is already associated to an account
+		/// </summary>
+		public static async Task<bool> SQLCheckAccount(string username)
         {
             bool found = false;
 			Query capitalQuery = db.Collection("users").WhereEqualTo("real", true);
@@ -1161,10 +1523,15 @@ namespace TescoTest // Note: actual namespace depends on the project name.
 			}
             return found;
 		}
+
+		/// <summary>
+		/// Task <c>Login</c> Logs the user in if they have the correct username and password and returns their userid username and if they are admin or not. THIS ISNT A SECURE WAY 
+		/// </summary>
 		public static async Task<List<object>> Login(string username,string password)
 		{
 			bool correct = false;
             string id = null;
+            bool admin = false;
 			try
             {
                 
@@ -1178,7 +1545,7 @@ namespace TescoTest // Note: actual namespace depends on the project name.
                     bool pass = false;
                     foreach (KeyValuePair<string, object> pair in users)
                     {
-                        Console.WriteLine("{0}: {1}", pair.Key, pair.Value);
+                       // Console.WriteLine("{0}: {1}", pair.Key, pair.Value);
                         if (pair.Key == "username")
                         {
                             if (pair.Value.ToString() == username)
@@ -1193,6 +1560,14 @@ namespace TescoTest // Note: actual namespace depends on the project name.
                                 pass = true;
                             }
                         }
+                        if(pair.Key == "admin")
+                        {
+							if(pair.Value.ToString() == "True")
+                            {
+								admin = true;
+							}
+                            
+						}
 
                     }
                     if (user && pass)
@@ -1202,6 +1577,7 @@ namespace TescoTest // Note: actual namespace depends on the project name.
                     }
                 }
             }
+            //Returns -2 orm -1 which will be displayed as different error on the front end
             catch (Exception)
             {
 				List<object> temp2 = new List<object>();
@@ -1221,41 +1597,50 @@ namespace TescoTest // Note: actual namespace depends on the project name.
 				List<object> temp4 = new List<object>();
 				temp4.Add(id);
 				temp4.Add(username);
+                temp4.Add(admin);
 				return temp4;
 			}
 		}
 
-    
-        public static int PutRequest(string productId,string itemName)
+
+		/// <summary>
+		/// Method <c>PutRequest</c> Adds the product to the basket on the real tesco website
+		/// </summary>
+		public static int PutRequest(string productId,string itemName,int quantity,List<string>parameters)
         {
+            //Headers required for the request
+            // x-csrf-token, cookie, Cookie, change with each login to tesco website so every time you want to add items to basket login to your order on tesco website select the order and add an item to the basket, then copy the values in that request
+            //and replace them in this code then will work
             var httpWebRequest = (HttpWebRequest)WebRequest.Create("https://www.tesco.com/groceries/en-GB/trolley/items?_method=PUT");
             httpWebRequest.Method = "PUT";
-            httpWebRequest.Headers["Cookie"] = "null; null; DCO=sdc; atrc=7018fe14-25aa-4b69-afb1-deec4dad0e2a; consumer=default; h-e=ec5a7f09a46b825f424c83ecad5ee4ff4ef3f09b188a7cb7f6719ff50f07a0b2; ighs-sess=eyJwYXNzcG9ydCI6eyJ1c2VyIjp7ImlkIjoiQ2FsbHVtMTIzNDUuY29tQGdtYWlsLmNvbSIsImVtYWlsIjoiSzdHcXBpMWlBblpSd2VpVk5BUkdYNDdzbW4rYlh3LzV0RlhHb1pwZ1dBQT0ifX0sInN0b3JlSWQiOiI1OTMwIiwiYW5hbHl0aWNzU2Vzc2lvbklkIjoiYWU4MDEwMWY0NGUxOWJkMWY2MmViNTAxYjQ3ZGNjMGUiLCJ1dWlkIjoiNTJmMmU2YjQtMzkwNy00NmIyLWE2N2QtYTMwMjMzMzc4NGZlIiwiY2FuY2VsbGVkT3JkZXJObyI6bnVsbCwicmVxdWVzdEJhY2t1cHMiOlt7ImlkIjoiMjVjNTJkNjItNWZiMC00NTM2LTkyNWQtMTMwZGUyODVlZmM4IiwibWV0aG9kIjoiUFVUIiwidXJsIjoiL2dyb2Nlcmllcy9lbi1HQi90cm9sbGV5L2l0ZW1zP19tZXRob2Q9UFVUIiwiYm9keSI6eyJpdGVtcyI6W3siaWQiOiIyODI3NjU3NjMiLCJuZXdWYWx1ZSI6MSwib2xkVmFsdWUiOjAsIm5ld1VuaXRDaG9pY2UiOiJwY3MiLCJvbGRVbml0Q2hvaWNlIjoicGNzIn1dLCJyZXR1cm5VcmwiOiIvZ3JvY2VyaWVzL2VuLUdCL3NlYXJjaD9xdWVyeT1waXp6YSJ9LCJ0aW1lc3RhbXAiOjE2NzA1ODA4NDk1NzZ9XX0=; ighs-sess.sig=eEl9aUzFIWzOIRFlVkqtCf-fN4o; trkid=ed990236-5fb4-4166-ae7e-9ead9a6801b8; _abck=C7A1A48549CEF2D36520306165E15951~-1~YAAQVkwQAmH5KH6EAQAArc5g9glr4FzOimnlKytj4puOlEkxFvt3wjxgPiT3AbOH9pCVM8v/zZPMKY0riaJce0mYUDde5nJyjw3xnJQTIR/H1dR1amWTcyvKk5ktibQcyXDlY7W6YPHJYum2PH4unSgl66C9PLzM2ttBpUg2WiHA4yttA9oYHQmx9aefpmbMH9XXAVj2qg1gv8si8ksy4JMfH2Fw6716706qlynZGLs7bXHANJdvv1X0akApyk/Dzlx3wNjA1d47KRsecO7mHmrTNYOh9U5zWcO7ZyaVLZgk39I/6QsR2cSOznEMadl82r4Zz4gH3UaW1n4wyDO867MSbfyxnXYIi3q7YeP2OxMNft7kRsOs/gv14wBtDsEx9d86sTfvBDXyMqCkqgT+UsOF41DwGQw=~0~-1~1670584282; ak_bmsc=A8A8600DE217437D5C8C939918BFA0BE~000000000000000000000000000000~YAAQZ0ISAi+5oX2EAQAAN4de9hJKNYL5727r2QMT6G8hTCwHKilLq9MKdpXPuXAhlwgt62GwSdfpa3Wz5i1einqyf0nR2d1kg0uyhYw6iW2XyksxxirgEq+s1YE3wirYLdPkbJpxvAdZNpr3VdwThs9mRYwugMLOO1yNyNHhOhacvNZ45H1mneBMSlIDK3c2766lwyl3uIRPcOdv5ybp16uGvbgTJZYmI/ear1vpnJsHWoUF1S/MkzR8Am69P8gSoB9/KGflTwXPgmYgYbYfaEKEG/9PPjQi1LVE8JOGwQiFawq9aChENmmg6Wcy2Flmzbd8tEHc2d5B+9JsJGGLD71cMVWx2Kvwto9BlYKVnKeFGgzxgtKAbrpW; atrc=9b9c5a37-4cfc-43c8-8841-12ecb3bd912b; bm_sv=61783F6F8AB1A07C3DE1CFE6D460464C~YAAQVkwQAmL5KH6EAQAArc5g9hIp7USDat+I4UZTu/RkMDDH+rgFOcVygwRaGPHYIzuR/Rij+VH+Vzp+IqB+ESkT5mXA249BYWDfk99p601IHg79xeoyUA4OL1fgw1UQ04LQp0UKGsMgy/S0NszpiM2jNTgTbJnMkj1QIjYuzcPn5uvajCBbqLJoSHnkQiqy5trjZzzcgCuTcn4is2OgMuPK3cnE5x1yqSw/gL4Z+a0zf5WQ7PMv7p41vYuVKD4o~1; bm_sz=A4AB81991266DCE4C7FAADB5F29B3A75~YAAQZ0ISAjC5oX2EAQAAN4de9hK1ilZbaF+noI2VHsL5Jv3atA9Gsdi+Gq2mykZUPekvcDTA3V3LwGlVZ9clmEPnS+D2JhkYXppsHxVLPPgrE/12kJPtPKrON5yvmEtSuaarheuKqG4P+mWWta/+pxrao5EmixCqexswVRL+F26Iz/wdH+K2lJAt/Xd9s0BI+WWRDasKVLG7z2WYju0IZyxt8sVs7pjRuH+nAFFIoMUtSJjJIVH1e0HaM/fwc02utSpF0qQIfsXmtsC63V2p2QMX6EO0M19N7C61hT16dMPeFQ==~4473649~3617331; _csrf=Ag15oY6ER-yN2zw-Vpz4xdzMnUSnS3Y9QQzjw; akavpau_OneAccount=1670516773~id=f4504e2ac88035daa36622751d9316b0; akavpau_tesco_groceries=1670581150~id=cf1787fc41ed3d13384cc7eb686ff099";
-            httpWebRequest.Headers["authority"] = "www.tesco.com";
+            httpWebRequest.Headers["Cookie"] = "atrc=7018fe14-25aa-4b69-afb1-deec4dad0e2a; h-e=ec5a7f09a46b825f424c83ecad5ee4ff4ef3f09b188a7cb7f6719ff50f07a0b2; trkid=ed990236-5fb4-4166-ae7e-9ead9a6801b8; _abck=DB3EA9072434AD7B6985E6052305F9F6~-1~YAAQFDZ6XExyJpWGAQAAUXtbmQmWoWVpk/0V7JdX56KquHbCXAs+20daCpGLI1a7TXcOYuXPY2xCeDBBYEzadLx7n5tmwIgmeqRCWK1Jo6V9GHq8N9P1rZOMCjgkk9Erk9HOm7iZzeN+w6Q3iXnnKEAujAVi4gxrATYwqRJM1suX9g6MbMe5GjoQQ3iBII8pNknIl6gABPjfShrGUe/Ks2TZaTWzPnJpnQlxt75jsXAPWKRnHWQZwTGZfKCEEemTF/WcxCAg7dVDMmhF9SIBrH9U3mp36rEMObXZxYCiumRNciTDFekjPYKDnXGvUYBE1eAiOBffx32socbcs7/ZozBP+aIB9zh+daPtSSJMF5aQZsUMIS+P5pftHfYXdhAUwDkLqFVfBNQaNTVGbvyKYzP9BbPIYhU=~0~-1~1677612461; atrc=7018fe14-25aa-4b69-afb1-deec4dad0e2a; _csrf=Ag15oY6ER-yN2zw-Vpz4xdzMnUSnS3Y9QQzjw";
+			//shift home
+			httpWebRequest.Headers["authority"] = "www.tesco.com";
             httpWebRequest.Accept = "application/json";
             httpWebRequest.Headers["accept-language"] = "en-GB,en-US;q=0.9,en;q=0.8";
             httpWebRequest.ContentType = "application/json";
-            httpWebRequest.Headers["cookie"] = "null; null; null; consumer=default; trkid=ed990236-5fb4-4166-ae7e-9ead9a6801b8; atrc=7018fe14-25aa-4b69-afb1-deec4dad0e2a; DCO=sdc; h-e=ec5a7f09a46b825f424c83ecad5ee4ff4ef3f09b188a7cb7f6719ff50f07a0b2; ighs-sess=eyJwYXNzcG9ydCI6eyJ1c2VyIjp7ImlkIjoiQ2FsbHVtMTIzNDUuY29tQGdtYWlsLmNvbSIsImVtYWlsIjoiSzdHcXBpMWlBblpSd2VpVk5BUkdYNDdzbW4rYlh3LzV0RlhHb1pwZ1dBQT0ifX0sImFuYWx5dGljc1Nlc3Npb25JZCI6ImUyNTQyZDFmMmVjNjRlNGYxOTIxOGMwNzA3ZjM4ODI2IiwicmVxdWVzdEJhY2t1cHMiOlt7ImlkIjoiNGEyY2U5MGEtY2I0OS00Njk5LThkZjYtOTRkNGFhZmQ3ZThhIiwibWV0aG9kIjoiUFVUIiwidXJsIjoiL2dyb2Nlcmllcy9lbi1HQi90cm9sbGV5L2l0ZW1zP19tZXRob2Q9UFVUIiwiYm9keSI6eyJpdGVtcyI6W3siaWQiOiIyNjQ2MjU5MTYiLCJuZXdWYWx1ZSI6MCwib2xkVmFsdWUiOjEsIm5ld1VuaXRDaG9pY2UiOiJwY3MiLCJvbGRVbml0Q2hvaWNlIjoicGNzIiwic3Vic3RpdHV0aW9uT3B0aW9uIjoiRmluZFN1aXRhYmxlQWx0ZXJuYXRpdmUifV0sInJldHVyblVybCI6Ii9ncm9jZXJpZXMvZW4tR0Ivc2VhcmNoP3F1ZXJ5PXBpenphJnJlZGlyZWN0SWZVbmF2YWlsYWJsZT10cnVlIn0sInRpbWVzdGFtcCI6MTY3MDU5NDM1NjAyOH1dLCJzdG9yZUlkIjoiNTkzMCIsInV1aWQiOiI1MmYyZTZiNC0zOTA3LTQ2YjItYTY3ZC1hMzAyMzMzNzg0ZmUifQ==; ighs-sess.sig=6wYj-bqU3HMaTJKdv0s6vET8BIg; null; itemsPerPage=48; atrc=9b9c5a37-4cfc-43c8-8841-12ecb3bd912b; _csrf=p5xsCom0fKmsQG9nxhxhlI1O; cookiePreferences=%7B%22experience%22%3Atrue%2C%22advertising%22%3Atrue%7D; optimizelyEndUserId=oeu1670580643402r0.18891604140012275; AMCVS_E4860C0F53CE56C40A490D45%40AdobeOrg=1; s_cc=true; UUID=52f2e6b4-3907-46b2-a67d-a302333784fe; CID=109635388; _gid=GA1.2.547161165.1670580652; _gcl_au=1.1.1159067804.1670580652; ADRUM=s=1670580758679&r=https%3A%2F%2Fwww.tesco.com%2Faccount%2Fdashboard%2Fen-GB%3F0; _4c_mc_=bb336543-3d61-4324-93b6-d9db09c3b08b; _mibhv=anon-1670580767025-9014973469_4481; bm_mi=31CFA68E46A8676D54A900DDC89C3AD9~YAAQETZ6XPEbHMqEAQAAuWj29hLtsbzLhXWorAYgoinWF/A4Mc53nrgVppVZ41d91OOBSh9spz7jQ+uIc4K59kmSJPawXi4cjxOPnJK0z10zpdd0ZxBKM3hj0BoO2vTYQhWHNhp2Te0SSckg8fQD8DqgP4V5aZfI2gf0aCfsAEp/kmY+6p5P2pxDIULWKdaT8OJeE9K0jP1IfHLZxp14yQSBUIHZYRsg5sf0JF1yJucEpY/JrG+aOtEChfInRrsM1gN7SEMAC/op2oQ1bCGXHCTOvff6hlJHaujl0xIvhgnjA4kZpwbCUfJVmp/cqg05yfqbLwTuk3rVOmZbxf21zQ==~1; s_nr=1670590659826-Repeat; ak_bmsc=56F904EFF5D5803DB9356358BD71A0D8~000000000000000000000000000000~YAAQETZ6XMYdHMqEAQAA8Hn29hIJhOgVIV+KYoaQZxxLBGxjITTchQRpaPKGGzGkCPQBRw7pBjJwI4KDIqxKRtjtpY4JbT8OP/ITyQpt2YlUan3wtaCMbO4hljbUsiJES79NeeDOZxL950gfk13c5e2Bv/CC0rMytUVPC7bZIihnuDcdqTSUgRx24iDqq1dZ8jKyRSClieFhbDwDDDLHJi/PT37iq06Vt3Sp8Fjimurxi83rU6ruM6KSbB5KdpjlsM1fiSs2jQ87/e1ybnRNRVcSECP6wJQVNN0YfKRli66t5KLxSaxDjYPXmCuVZGuOE27xUFr5E15cGSPjYrtXAgL1w7Ul1fQ9qrTnd+UWVruuLExjV2dW+/5slUCyeTn7HBUFzJdmnshhr1WGWwlspGsAO52H0qsvQw/Hufb2rfo7bwEWaDHnamS3qlv0; bm_sz=3C0DC9D1145A069F19C573FA386ADB85~YAAQDTZ6XD78C92EAQAAenYu9xJslrPlNnPfv+FIdFqX/IKBorH36Q3YEFFk7UF79TlJBXteJad9ZIkDbVd7ShHooGtMCJIni+f9PIh1uOPSWgM1/hKa38WIZYwxGxmKYMt9HVKrh3iYhMKMDLWUCwiGjF8pqqqPPxBxZw6PPwMb/85qynEhJib3wi4KKGT4gPDNupntByWGCjyj/j0BWEX3cjxD0SP7UqK+nwN3GvabWev2zulDEP329Jxv3FEyTkvuCtxPf4BMOcxSKqF+shw8KBDwozOM0ubLmK+PYCaVKg==~3421764~4473651; AKA_A2=A; s_gpv_pn=search%20results; OAuth.AccessToken=eyJraWQiOiIyMTM1MGE2NC02YTYxLTRiNmYtYjIyZS1lYTNkOTNiY2YyMTQiLCJhbGciOiJSUzI1NiJ9.eyJqdGkiOiIwZTNlM2M5ZS1lNjgyLTQwNDEtYTQ2Ny1lZWY2NDM2NGNhYWMiLCJpc3MiOiJodHRwczovL2FwaS50ZXNjby5jb20vaWRlbnRpdHkvdjQvaXNzdWUtdG9rZW4iLCJzdWIiOiI1MmYyZTZiNC0zOTA3LTQ2YjItYTY3ZC1hMzAyMzMzNzg0ZmUiLCJpYXQiOjE2NzA1OTQzNDQsIm5iZiI6MTY3MDU5NDM0NCwiZXhwIjoxNjcwNTk3OTQ0LCJzY29wZSI6ImludGVybmFsIiwiY29uZmlkZW5jZV9sZXZlbCI6MTIsImNsaWVudF9pZCI6ImExNzE0NzBlLWIwZTMtNDZkMS1iZjEyLWMyMGI0MTI4ZjRiNiIsInRva2VuX3R5cGUiOiJiZWFyZXIiLCJzaWQiOiIwMUdLVkZDWTYxRzRDTlQ2UVo2UEJZVkpOSi00YzkwYTBiNS02ZTEzLTQ5MjktOGY2OS1lZmM1NjNlYTBiOWEtd0NkeW5KcktYOGFTZ3MzcDViZncyU0NJYnBlYl9qQXA3Y1dLIn0.Os37DxacDhtMy5yLph7NFoDWwFI_pzXjl_Qrza-Q4iF84X_MNKRjRqGrwaSsMZo2JgrColiV1YwSDkeU6cHo7UKdYOsuWdlN2BQdM7yhA80CERE7xHUvG8Fp84DiHRky7E7om6HMXNFg8-SxfPD1McLsKsS3tADITi4nVPNgPjLZZjUgp501RBOm13Az-Ce3U7qVv8l029bpdkOmhHhMo-lmfUxURX4zDcCxJAlwFcbE2LSDz2gYmcda2z3FZOyedlITogwniukkZEpUOe2B6jWC_P17RlnHd9fLzLvoRVZwS8ST2FW9P3h7ipzAxVRk70YFc0sb3FxzUmKkAzoutA; OAuth.RefreshToken=37912d82-544d-4ef2-b0d5-a2d58cee3894; OAuth.TokensExpiryTime=%7B%22AccessToken%22%3A1670597943784%2C%22RefreshToken%22%3A1670597943784%7D; akavpau_OneAccount=1670594644~id=a0e3fd5647bdf634a69643df91a5eeb3; _abck=C7A1A48549CEF2D36520306165E15951~0~YAAQDTZ6XJcEDN2EAQAAgNsu9wmXHKnYI1HP8nq/M9cCi0zAOdb28I2mqLM0LHEiCgYy0YmWTMr1yDTNrxjNPZ2M+ZBebMXxZhCzEVUZn+HvzoCVoYFuT6WSPnAeSm+jvjWWOHEZZ7sS9sDt5kjxWCnlR0/JAr6vewaPgXhbhmFuXE/OSoeZbLywPVYciXZptC2XB2IRQZVO9mZmlKT9YxdR8s4zBf7qIVVkKmvHWTOg8dVW5mL/7YZpR3dmuao6wyDRqPN5mX+BWlvar1xFCb432pLsZjUuS2EbF8M4+3eZKaqX2BZZQpy+SsC2ukWHbdAZOSJ4O4Hm5iVOdGRJ4wdGETi5bhs/EbjnC8R/A3YxPKaDWz1Q/ukpkLtL0q4kVwXLfZIp2xSqG9xIaq8uZeOypBkUQPc=~-1~-1~1670597887; akavpau_tesco_groceries=1670594656~id=f3f64d8e1c69f8a84f25f5b9fb934af9; _ga=GA1.2.196785261.1670580652; _uetsid=0724018077aa11ed8f4d7d3217a1caab; _uetvid=0724a1b077aa11ed9f1a3321eb13f478; _ga_33B19D36CY=GS1.1.1670594333.3.1.1670594359.34.0.0; bm_sv=DE20FCBC2F2799DB919EB5F8DBF5999B~YAAQDTZ6XKsGDN2EAQAAcu4u9xIaMalpL7Cas4sIwOn9k7IENslWCP4g+7qnXebZWIKqTxecXHA5funM6RPIdQjBFfdbvF1RLgPJOGyxpJya7U8gPBTa8Kf0Wh1MkDb0SFFdvLg53665RkFoMDep5PXEGtBND5X2i1R/D2XEmfmq7jpvlMuh4hhp+A5BQhbN8yA98ZZXqdpnvjj1rgRzbkDaKE8tiEF5eZUj+w6zZEkwh08G298GLElp3yZAWapw~1; AMCV_E4860C0F53CE56C40A490D45%40AdobeOrg=1585540135%7CMCIDTS%7C19336%7CMCMID%7C47386895584659221363745669077893763192%7CMCAID%7CNONE%7CMCOPTOUT-1670601697s%7CNONE%7CvVersion%7C4.4.0";
+            httpWebRequest.Headers["cookie"] = "null; null; null; consumer=default; trkid=ed990236-5fb4-4166-ae7e-9ead9a6801b8; atrc=7018fe14-25aa-4b69-afb1-deec4dad0e2a; DCO=sdc; h-e=ec5a7f09a46b825f424c83ecad5ee4ff4ef3f09b188a7cb7f6719ff50f07a0b2; deliveryPreferences=j%3A%7B%22addressId%22%3A%22104610347%22%7D; ighs-sess=eyJzdG9yZUlkIjoiNTkzMCIsImFuYWx5dGljc1Nlc3Npb25JZCI6IjI4MjAzZjdjZDAwN2VkYzE4ZDEzOTgwNjBkOTZmODNhIiwidXVpZCI6IjUyZjJlNmI0LTM5MDctNDZiMi1hNjdkLWEzMDIzMzM3ODRmZSIsInJlcXVlc3RCYWNrdXBzIjpbeyJpZCI6IjAxYTJlOTI4LWIxZGMtNDJlYy1iZjIzLWU2M2M0YjAxNWQ1YSIsIm1ldGhvZCI6IlBVVCIsInVybCI6Ii9ncm9jZXJpZXMvZW4tR0IvdHJvbGxleS9pdGVtcz9fbWV0aG9kPVBVVCIsImJvZHkiOnsiaXRlbXMiOlt7ImlkIjoiMzA4NDkzODgzIiwibmV3VW5pdENob2ljZSI6InBjcyIsIm5ld1ZhbHVlIjowLCJvbGRVbml0Q2hvaWNlIjoicGNzIiwib2xkVmFsdWUiOjEsInN1YnN0aXR1dGlvbk9wdGlvbiI6IkZpbmRTdWl0YWJsZUFsdGVybmF0aXZlIn1dLCJyZXR1cm5VcmwiOiIvZ3JvY2VyaWVzL2VuLUdCL3NlYXJjaD9xdWVyeT1waXp6YSJ9LCJ0aW1lc3RhbXAiOjE2ODU4MjM1Mzg1NzJ9XX0=; ighs-sess.sig=dI-3mTyt8ikQ7WMirKlt0VJst50; null; itemsPerPage=48; _csrf=rvuvUUpGwD_0zLd27YIu1QfA; cookiePreferences=%7B%22experience%22%3Atrue%2C%22advertising%22%3Atrue%7D; AMCVS_E4860C0F53CE56C40A490D45%40AdobeOrg=1; s_cc=true; _mibhv=anon-1670580767025-9014973469_4481; _4c_mc_=bb336543-3d61-4324-93b6-d9db09c3b08b; optimizelyEndUserId=oeu1670946505908r0.7781257664873842; CID=109635388; HYF=1; _gcl_au=1.1.19915024.1678654731; _gac_UA-17489144-30=1.1682800008.EAIaIQobChMI8Yj7h_bP_gIV0O7tCh3-EwiaEAAYASAAEgI4u_D_BwE; _gcl_aw=GCL.1682800008.EAIaIQobChMI8Yj7h_bP_gIV0O7tCh3-EwiaEAAYASAAEgI4u_D_BwE; atrc=7018fe14-25aa-4b69-afb1-deec4dad0e2a; UUID=52f2e6b4-3907-46b2-a67d-a302333784fe; bm_sz=3852E10D3991C14D54707462B9C6C4D3~YAAQNjZ6XHJrcG6IAQAA/wXpghM6TFJGetwhVabzjZ9F4E0dEM/pW7LWYRcmrxrKL8VdcieY37jvny9WM2YGDoPoOBrTJTdMVlD5zcwIW20aNVjLtN1/8EnAgjq7oAaE+QGmv2uuDVNTD74Dc8YWCpCHKKmlOrvQlQNYeVkMlEPP5u0kQd060szNmpwooQLk1RfhX79gR9StGG1i0tP+lMjR01UlZ145RNOjtwQLVsVwD16PlV+PKafJPOzVW1gVMnfujUBWb23+FgGpnSPis40w6fW0TN75hRJqvyKwrSki1g==~4342320~3749940; AKA_A2=A; AMCV_E4860C0F53CE56C40A490D45%40AdobeOrg=1585540135%7CMCIDTS%7C19511%7CMCMID%7C89858544417324752138609249372332897292%7CMCAID%7CNONE%7CMCOPTOUT-1685830693s%7CNONE%7CvVersion%7C4.4.0%7CMCAAMLH-1686428293%7C6%7CMCAAMB-1686428293%7Cj8Odv6LonN4r3an7LhD3WZrU1bUpAkFkkiY1ncBR96t2PTI; s_nr=1685823495965-Repeat; OAuth.AccessToken=eyJraWQiOiIyMTM1MGE2NC02YTYxLTRiNmYtYjIyZS1lYTNkOTNiY2YyMTQiLCJhbGciOiJSUzI1NiJ9.eyJqdGkiOiI5YTk3MmQwYS01MmI4LTRjYzUtOGM2Yy02MjIzMDNkNzc0Y2MiLCJpc3MiOiJodHRwczovL2FwaS50ZXNjby5jb20vaWRlbnRpdHkvdjQvaXNzdWUtdG9rZW4iLCJzdWIiOiI1MmYyZTZiNC0zOTA3LTQ2YjItYTY3ZC1hMzAyMzMzNzg0ZmUiLCJpYXQiOjE2ODU4MjM0OTcsIm5iZiI6MTY4NTgyMzQ5NywiZXhwIjoxNjg1ODI3MDk3LCJzY29wZSI6ImludGVybmFsIHB1YmxpYyIsImNvbmZpZGVuY2VfbGV2ZWwiOjEyLCJjbGllbnRfaWQiOiJhMTcxNDcwZS1iMGUzLTQ2ZDEtYmYxMi1jMjBiNDEyOGY0YjYiLCJ0b2tlbl90eXBlIjoiYmVhcmVyIiwic2lkIjoiMDFIMjFFSjk0UEQ2Q0VEUUozUThNTUZYSDEtY2MwYzgxOWMtZmExYy00NTE1LTg4YjktNWI4ZjE1ZTQ5MzU3LXRVTkE3eFphTGRpWVF4RlNVRTZBMHA2WWhnZlpLRUI4Rm9jZSJ9.AaCcsdPpheEVGsJAniLvRrD9vefMaKoTFzWSPcXRvg1vXlxYXIRS67On2kQcsm5lRjqKZkJsW8bytIj_0obsLd7ZLyFtowC01gVHiELgIWay_Mt9HkszWZ1anagUlaDgK9KXOKOQoz_zpe6B0H5jWY-OpEboGno3sdR_buBf93_Os2QjvmSBPl9Vw3XifvA1ZpjBcdzOuT14CrV3SUa1zyNp2XXTDfpieWWP7a1N2KQGA-WWthzzlQsoTCfOrFbBO5gMcCLGCKnGpL3NOyKiIfgJ5xSCJMrzQDzVe75t-0ApDExDofCRXzs2_3wBAH_FukLpC77iHD0oroSJ0LF7hg; OAuth.RefreshToken=D0101H21EJ94PD6CEDQJ3Q8MMFXH2mA0X3iM; OAuth.TokensExpiryTime=%7B%22AccessToken%22%3A1685827096519%2C%22RefreshToken%22%3A1685830697519%7D; akavpau_OneAccount=1685823797~id=fa4a15117b1ef712061acb15849a6b29; bm_mi=28B316111B6DE1C09A21522AA40E86F4~YAAQLjZ6XLwz80CIAQAAFCzpghP6BP6rH2hp6KEUYuvPRL6gdmJ3ihz2cz2sSpj1V/2QZkoOMDfDCxkOylR3IsgCdPoBDhL12KmPL51vPfjDlNp5EwS6R+QAKDwACixn6J8QnJeH6DrilwJP1/0pB8j2IrVwGhgJSPcO/F+WuqlglJ8kq5G0cfnO/u9SQB69c+QtzVnf/CetP3p9BdglMl5g5cVlIv+MWn8n4jamahNPLWCbzpuCkbWLhaRPnb996PDZOCTRIAgFAd85cX4fAREyF6rW7wZvpQv6EPmQknEM9escwGNO66pNCYEU7TX7irxqhn3QNRcwBS9FD7acUfXzoA==~1; _gid=GA1.2.622698922.1685823503; _gat_ukLego=1; ak_bmsc=84E3C4645BC24DA8493E5C7BB0116AE7~000000000000000000000000000000~YAAQSzZ6XECbIneIAQAAQmbpghPpESEK8bmj6XZhFzY/zFBWxEILNMuNsQugKqkj4q844utKAkGgPfX3yO2kY0v1X3gMCyDN5cpr8HuJryfoIu1R2/Q96JutSrCVhE2eiMQtp4yciEOtMsDjrXDrjkMwCLT7g2aBc1wZFJtGTG9ucYXjF9kG8xhk6POg9hbdO/Zw6/yUUkgpsw79deriicwEbrn5jf9d5HDF5j7VOYagcva7K/4W7QjwB9k87k3X8lObIhA5lmfahD6R+TkQekoLOLCjuHZ81rSk4d86jkFcyo8rugisMd9bNtzVSyVYRYJ+gdgtMg6KtrpJnI4floYPYq4w4Y28a4jVoK2bOjRJ4bKLMsRuz7qsPT+UJRjLDkArKvdyFlFuOjFte/2KYmWVyG0aZmEe7LLdM8XoxxgtgFwK3l1uglsnhR7eGO52; da_sid=905CBC1C8E33AE8C5368AA13B398CABAD6|4|0|4; da_lid=90FC84D19A73EA10B0A5BB99F5B6BD09F6|0|0|0; da_intState=; _ga=GA1.2.725422933.1670716073; _abck=DB3EA9072434AD7B6985E6052305F9F6~0~YAAQODZ6XNrimG2IAQAAYIzpgglvhvIol3iJsXR7rpu9UO5CeXl3UA7uzSQvbyvZxf96Gnr2zbGInOits8tYeLCUinV+7x+WvjtVsxNCF17dC3NCphdCHg2htTl/2dDIphpjiD1hBVIHNzx0SFKU88X1Ln3RqqKZLiYXG1i2GNxcBGxRXGo2dhvtpknu60dZfmL5Gakr4lEHG8kWr9xL0Y+rl11g5sIqgnn7w813ucBsCyRATqReUD6LV5kKhSFbyB9C5FpgRauAgh9sjbreVhlgTIvTQ/tm5F0/icsu9jBiKLuvPfv1u1CkiiNL23P6lFYgNBVHRrL4lym2kUJnN2TBx7RQzlmoP0dxC/gvNWUS/2qcX3qg2zZpmlELtWrvJAodDCK+zXKUnHefu6JWuWpIgomhDds=~-1~-1~1685827011; s_gpv_pn=search%20results; _uetsid=c9f232a0024b11ee8814f9ac39cd959b; _uetvid=0724a1b077aa11ed9f1a3321eb13f478; akavpau_tesco_groceries=1685823840~id=fa958ca436255a3658e3dc889f1714c0; bm_sv=796364C9CD9642E28C316648A83F1F8C~YAAQKjZ6XN8Qc3WIAQAA6c3pghOaW5u5rR7y1W3YkiqLJfwFGyvjN7SsBEWiPaC6cI9U+6S01Yo1j1vLOxNgQlHJjG6Xn733hp1xYLLy3/zPwbS2iInHEtE9N9/2pXqvPKYAr2+CUQpgjDgBB4M/VK9IWRLC84Qotv+TDMJY7wdzVyNxkdtXhWZN7uGCsOJAgzyH9wDr5HSI0sfGinILXyZA+TrhGz3aPuV6ljK9nOgOq9q41kbwXkF6Z0z1VtLC~1; _ga_33B19D36CY=GS1.1.1685823491.38.1.1685823540.11.0.0";
             httpWebRequest.Headers["origin"] = "https://www.tesco.com";
             httpWebRequest.Referer = "https://www.tesco.com/groceries/en-GB/search?query=" + itemName;
-            httpWebRequest.Headers["sec-ch-ua"] = "\"Google Chrome\";v=\"107\", \"Chromium\";v=\"107\", \"Not = A ? Brand\";v=\"24\"";
+           // httpWebRequest.Headers["sec-ch-ua"] = parameters[2];
             httpWebRequest.Headers["sec-ch-ua-mobile"] = "?0";
             httpWebRequest.Headers["sec-ch-ua-platform"] = "\"Windows\"";
             httpWebRequest.Headers["sec-fetch-dest"] = "empty";
             httpWebRequest.Headers["sec-fetch-mode"] = "cors";
             httpWebRequest.Headers["sec-fetch-site"] = "same-origin";
-            httpWebRequest.Headers["traceparent"] = "00-51b7aeb6dfd1d5631c4e06d3b6090102-df333b84ba580ddd-01";
-            httpWebRequest.Headers["tracestate"] = "3296235@nr=0-1-3512954-1134246125-df333b84ba580ddd----1670594497349";
-            httpWebRequest.UserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/107.0.0.0 Safari/537.36";
-            httpWebRequest.Headers["x-csrf-token"] = "hLGoFv4F-Zl717x_qQpfFVPJFIXn471HZn-E";
-            httpWebRequest.Headers["x-requested-with"] = "XMLHttpRequest";
+           // httpWebRequest.Headers["traceparent"] = parameters[2];
+           // httpWebRequest.Headers["tracestate"] = parameters[3];
+            httpWebRequest.UserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/109.0.0.0 Safari/537.36";
+            httpWebRequest.Headers["x-csrf-token"] = "QJfS5ijR-wiul6pxYCAA3OZLoULqIV9BZxyU";
+
+			httpWebRequest.Headers["x-requested-with"] = "XMLHttpRequest";
             httpWebRequest.KeepAlive = true;
             httpWebRequest.Headers["Accept-Encoding"] = "gzip, deflate, br";
             httpWebRequest.Headers["x-requested-with"] = "XMLHttpRequest";
             httpWebRequest.AutomaticDecompression = DecompressionMethods.GZip | DecompressionMethods.Deflate;
             using (var streamWriter = new StreamWriter(httpWebRequest.GetRequestStream()))
             {
-                string json = "{\"items\":[{\"id\":\""+productId+"\",\"newValue\":1,\"oldValue\":0,\"newUnitChoice\":\"pcs\",\"oldUnitChoice\":\"pcs\",\"substitutionOption\":\"FindSuitableAlternative\"}],\"returnUrl\":\"/groceries/en-GB/search?query=" + itemName + "\"}";
+                string json = "{\"items\":[{\"id\":\""+productId+"\",\"newValue\":"+quantity.ToString()+",\"oldValue\":0,\"newUnitChoice\":\"pcs\",\"oldUnitChoice\":\"pcs\",\"substitutionOption\":\"FindSuitableAlternative\"}],\"returnUrl\":\"/groceries/en-GB/search?query=" + itemName + "\"}";
                 streamWriter.Write(json);
             }
             try
@@ -1274,10 +1659,13 @@ namespace TescoTest // Note: actual namespace depends on the project name.
             return -1;
         }
 
-        public static async Task<string> GetPrice(string orderId)
+		/// <summary>
+		/// Task <c>GetPrice</c> Gets the total cost of an order
+		/// </summary>
+		public static async Task<string> GetPrice(string orderId)
         {
             string total = "";
-			Query ordersQuery = db.Collection("orders").WhereEqualTo("live", true);
+			Query ordersQuery = db.Collection("orders");
 			QuerySnapshot ordersQuerySnapshot = await ordersQuery.GetSnapshotAsync();
 			foreach (DocumentSnapshot documentSnapshot in ordersQuerySnapshot.Documents)
 			{
@@ -1302,23 +1690,112 @@ namespace TescoTest // Note: actual namespace depends on the project name.
             return total;
 
 		}
-        public static async Task<int> AddToOrderV2(int productId,float cost, string orderId, string userId, string query)
+
+		/// <summary>
+		/// Task <c>GetDate</c> Gets the date of an order
+		/// </summary>
+		public static async Task<string> GetDate(string orderId)
+        {
+			string total = "";
+            try
+            {
+                Query ordersQuery = db.Collection("orders");
+                QuerySnapshot ordersQuerySnapshot = await ordersQuery.GetSnapshotAsync();
+                foreach (DocumentSnapshot documentSnapshot in ordersQuerySnapshot.Documents)
+                {
+                    if (documentSnapshot.Id == orderId)
+                    {
+                        Dictionary<string, object> users = documentSnapshot.ToDictionary();
+                        bool user = false;
+                        bool pass = false;
+                        foreach (KeyValuePair<string, object> pair in users)
+                        {
+                            Console.WriteLine("{0}: {1}", pair.Key, pair.Value);
+                            if (pair.Key == "date")
+                            {
+                                total = pair.Value.ToString();
+
+                            }
+
+
+                        }
+                    }
+                }
+            }
+            catch (Exception)
+            {
+                return "-1";
+            }
+			return total;
+		}
+
+		/// <summary>
+		/// Task <c>GetLive</c> Checks if a order is live or not
+		/// </summary>
+		public static async Task<bool> GetLive(string orderId)
+        {
+            bool live = false;
+            Query ordersQuery = db.Collection("orders");
+            QuerySnapshot ordersQuerySnapshot = await ordersQuery.GetSnapshotAsync();
+            foreach (DocumentSnapshot documentSnapshot in ordersQuerySnapshot.Documents)
+            {
+                if (documentSnapshot.Id == orderId)
+                {
+                    Dictionary<string, object> users = documentSnapshot.ToDictionary();
+                    bool user = false;
+                    bool pass = false;
+                    foreach (KeyValuePair<string, object> pair in users)
+                    {
+                        if (pair.Key == "live")
+                        {
+                            live = bool.Parse(pair.Value.ToString());
+
+                        }
+
+
+                    }
+                }
+            }
+            return live;
+        }
+
+		/// <summary>
+		/// Task <c>AddToOrderV2</c> Adds a product for the <paramref name="userId"/> to the order <paramref name="orderId"/>
+		/// </summary>
+		public static async Task<int> AddToOrderV2(int productId,float cost, string orderId, string userId, string query,string name,string img)
         {
             try
             {
                 double price = double.Parse((await GetPrice(orderId)));
+                bool live = await GetLive(orderId);
+                if (!live)
+                {
+                    return -2;
+                }
                 price += cost;
                 price = Math.Round(price, 2);
+                double finalCost = Math.Round(cost, 2);
                 Dictionary<string, object> data = new Dictionary<string, object>
             {
                 {"added",false },
                 {"query",query },
                 {"owner",userId },
                 {"productId",productId },
-                {"price",cost }
+                {"price",finalCost },
+                {"name",name},
+                {"image",img }
             };
-                DocumentReference orderRef = db.Collection("orders").Document(orderId);
-                await orderRef.UpdateAsync("products", FieldValue.ArrayUnion(data));
+                //Deletes the products then adds the products again with the new product to be added as well, as when you update the field it merges similar products when you need them to be sepearate
+                Dictionary<string, object> dataToDelete = new Dictionary<string, object>
+                {
+                    {"products",FieldValue.Delete }
+                };
+
+				List<object> theProducts = await GetProducts(orderId);
+				theProducts.Add(data);
+				DocumentReference orderRef = db.Collection("orders").Document(orderId);
+                await orderRef.UpdateAsync(dataToDelete);
+                await orderRef.UpdateAsync("products", theProducts);
                 await orderRef.UpdateAsync("total", price.ToString());
             }
             catch(Exception)
@@ -1334,132 +1811,16 @@ namespace TescoTest // Note: actual namespace depends on the project name.
 
 
 		}
-        /*public static int AddToOrder(int productId,float cost, int orderId,string userId,string query)
-        {
-            string currentProduct = GetProducts(orderId);
-            double price = (double)(GetPrice(orderId));
-            string priceNormalised = "";
-            foreach(char c in cost.ToString())
-            {
-                if(c.ToString() == ".")
-                {
-                    priceNormalised +="!";
-                }
-                else
-                {
-                    priceNormalised += c.ToString();
-                }
-            }
-            if(currentProduct == "null" || price == -1)
-            {
-                return -1;
-            }
-            if (currentProduct == "")
-            {
-                char[] productFinal = new char[currentProduct.Length + productId.ToString().Length + userId.Length + query.Length + cost.ToString().Length + 4];
-                string value = productId.ToString() + "N." + userId.ToString() + "." + priceNormalised + "." + query;
-                for (int i =0; i<value.Length; i++)
-                {
-                    productFinal[i] = value[i];
-                }
-                currentProduct = string.Concat(productFinal);
-            }
-            else
-            {
-                string value = productId.ToString() + "N." + userId.ToString() + "." + priceNormalised + "." + query+",";
-                char[] productFinal = new char[currentProduct.Length + productId.ToString().Length + userId.Length + query.Length + cost.ToString().Length + 5];
-                int i = 0;
-                for (i = 0; i < value.Length; i++)
-                {
-                    productFinal[i] = value[i];
-                }
-                for(int j = 0; j < currentProduct.Length; j++)
-                {
-                    productFinal[i] = currentProduct[j];
-                    i++;
-                }
-                currentProduct = string.Concat(productFinal);
-            }
-            price += cost;
-            price = Math.Round(price, 2);
-            try
-            {
-                SqlConnectionStringBuilder builder = new SqlConnectionStringBuilder();
-                builder.DataSource = "cufesqlserver.database.windows.net";
-                builder.UserID = "azureuser";
-                builder.Password = "Cufe582458!";
-                builder.InitialCatalog = "TescoDatabase";
-                using (SqlConnection connection = new SqlConnection(builder.ConnectionString))
-                {
-                    string sql = "update orders set productId =\'"+currentProduct+"\',price = "+price+" where orderId = "+orderId;
-                    using (SqlCommand command = new SqlCommand(sql, connection))
-                    {
-                        connection.Open();
-                        using (SqlDataReader reader = command.ExecuteReader())
-                        {
 
-                        }
-                    }
-                }
-            }
-            catch (SqlException e)
-            {
-                
-                return -2;
-            }
-            return 0;
-        }
-
-        */
-       /* public static float GetPrice(int orderId)
-        {
-            try
-            {
-                SqlConnectionStringBuilder builder = new SqlConnectionStringBuilder();
-                builder.DataSource = "cufesqlserver.database.windows.net";
-                builder.UserID = "azureuser";
-                builder.Password = "Cufe582458!";
-                builder.InitialCatalog = "TescoDatabase";
-                using (SqlConnection connection = new SqlConnection(builder.ConnectionString))
-                {
-                    string sql = "SELECT price from orders where orderId =" + orderId;
-                    using (SqlCommand command = new SqlCommand(sql, connection))
-                    {
-                        connection.Open();
-                        using (SqlDataReader reader = command.ExecuteReader())
-                        {
-                            int account = -1;
-                            while (reader.Read())
-                            {
-                                if (reader.HasRows)
-                                {
-                                    var temp = reader.GetValue(0);
-                                    return float.Parse(reader.GetValue(0).ToString());
-                                }
-
-
-                            }
-
-                            return -1;
-
-
-                        }
-                    }
-                }
-            }
-            catch (SqlException e)
-            {
-                return -1;
-            }
-        }
-        
-        */
-        public async static Task<List<object>> GetProducts(string orderId)
+		/// <summary>
+		/// Task <c>GetProducts</c> Returns all the products from a order <paramref name="orderId"/>
+		/// </summary>
+		public async static Task<List<object>> GetProducts(string orderId)
         {
             List<object> products = new List<object>();
             try
             {
-                Query ordersQuery = db.Collection("orders").WhereEqualTo("live", true);
+                Query ordersQuery = db.Collection("orders");
                 QuerySnapshot ordersQuerySnapshot = await ordersQuery.GetSnapshotAsync();
                 foreach (DocumentSnapshot documentSnapshot in ordersQuerySnapshot.Documents)
                 {
@@ -1489,79 +1850,112 @@ namespace TescoTest // Note: actual namespace depends on the project name.
 				products.Add("null");
 				return products;
             }
+            //To remove null product
+            for(int i = 0; i < products.Count; i++)
+            {
+                object prod = products[i];
+                if(prod.ToString() == "null" || prod == null)
+                {
+                    products.RemoveAt(i);
+                }
+            }
+            
+
+            
             return products;
             
         }
-        
-       public async static Task<int> UpdateProducts(List<object> products,string orderId)
+
+		/// <summary>
+		/// Task <c>UpdateProducts</c> Sets the field "added" on all products to True
+		/// </summary>
+		public async static Task<int> UpdateProducts(List<object> products,string orderId)
         {
-            try
+			List<object> allProducts = await GetProducts(orderId);
+            if(allProducts.Count == 0 || allProducts == null) {
+                return -1;
+            }
+			try
             {
                 DocumentReference ordersRef = db.Collection("orders").Document(orderId);
-                foreach (object product in products)
+                for (int i = 0; i < allProducts.Count; i++)
                 {
-                    await ordersRef.UpdateAsync("products", FieldValue.ArrayRemove(product));
-                }
-
-                for (int i = 0; i < products.Count; i++)
-                {
-                    Dictionary<string, object> tempProduct = (Dictionary<string, object>)products[i];
-
-					foreach (KeyValuePair<string, object> fields in (Dictionary<string, object>)products[i])
+                    object product = (object)allProducts[i];
+                    string id = "";
+                    string owner = "";
+                    foreach (KeyValuePair<string, object> fields in (Dictionary<string, object>)product)
                     {
-                        if (fields.Key == "added")
+                        if (fields.Key == "productId")
                         {
-                            tempProduct[fields.Key] = (object)true;
+                            id = fields.Value.ToString();
+                        }
+                        if (fields.Key == "owner")
+                        {
+                            owner = fields.Value.ToString();
+                        }
+                    }
+
+                    for (int j = 0; j < products.Count; j++)
+                    {
+                        object product2 = (object)products[j];
+                        bool idV = false;
+                        bool nameV = false;
+                        foreach (KeyValuePair<string, object> fields2 in (Dictionary<string, object>)product)
+                        {
+                            if (fields2.Key == "productId")
+                            {
+                                if (fields2.Value.ToString() == id)
+                                {
+                                    idV = true;
+                                }
+                            }
+                            if (fields2.Key == "owner")
+                            {
+                                if (fields2.Value.ToString() == owner)
+                                {
+                                    nameV = true;
+                                }
+                            }
+                        }
+                        if (idV && nameV)
+                        {
+                            Dictionary<string, object> temp = (Dictionary<string, object>)allProducts[i];
+
+                            temp["added"] = (object)true;
+                            allProducts[i] = temp;
+                            products.RemoveAt(j);
                             break;
                         }
                     }
-                    await ordersRef.UpdateAsync("products", FieldValue.ArrayUnion(tempProduct));
 
                 }
 
+                //We delete and add again because of same reason as the addToOrderV2 method
+				DocumentReference orderRef = db.Collection("orders").Document(orderId);
+				Dictionary<string, object> fieldDelete = new Dictionary<string, object>
+				{
+					{"products",FieldValue.Delete }
+				};
+				await orderRef.UpdateAsync(fieldDelete);
+				await orderRef.UpdateAsync("products", allProducts);
 
 
 
 
-            }
+
+
+			}
             catch (Exception)
             {
                 return -2;
             }
             return 0;
         }
-      
-        /*  public static int UpdatePrice(float price, int orderId)
-        {
-            try
-            {
-                SqlConnectionStringBuilder builder = new SqlConnectionStringBuilder();
-                builder.DataSource = "cufesqlserver.database.windows.net";
-                builder.UserID = "azureuser";
-                builder.Password = "Cufe582458!";
-                builder.InitialCatalog = "TescoDatabase";
-                using (SqlConnection connection = new SqlConnection(builder.ConnectionString))
-                {
-                    string sql = "update orders set price =\'" + Math.Round(price, 2) + "\' where orderId = " + orderId;
-                    using (SqlCommand command = new SqlCommand(sql, connection))
-                    {
-                        connection.Open();
-                        using (SqlDataReader reader = command.ExecuteReader())
-                        {
 
-                        }
-                    }
-                }
-            }
-            catch (SqlException e)
-            {
-
-                return -2;
-            }
-            return 0;
-        }
-      */
-        public async static Task<int> AddToCart(string orderId)
+		/// <summary>
+		/// Task <c>AddToCart</c> Adds all products on an order <paramref name="orderId"/> to the real tesco website cart
+		/// </summary>
+		public async static Task<int> AddToCart(string orderId,List<string> parameters)
         {
             List<object> products = await GetProducts(orderId);
             if (products[0] == "null")
@@ -1569,15 +1963,19 @@ namespace TescoTest // Note: actual namespace depends on the project name.
                 return -1;
             }
             List<object> addedProducts = new List<object>();
-            foreach(object product in products)
-            {
-                string id = "";
-                string query = "";
-                bool add = false;
-                foreach(KeyValuePair<string,object> fields in (Dictionary<string, object>)product){
-                    if(fields.Key == "added")
+            Dictionary<string, int> toAdd = new Dictionary<string, int>();
+			for (int i = 0; i < products.Count; i++)
+			{
+				object product = (object)products[i];
+				string id = "";
+				string query = "";
+				bool add = false;
+				foreach (KeyValuePair<string, object> fields in (Dictionary<string, object>)product)
+				{
+                    if(fields.Key.ToString() == "added")
                     {
-                        if(fields.Value.ToString() == "false")
+                    //Checks if the added Field is false so it needs to be added to tesco cart       
+                        if(fields.Value.ToString().ToLower() == "false")
                         {
                             add = true;
                         }
@@ -1592,20 +1990,38 @@ namespace TescoTest // Note: actual namespace depends on the project name.
                         id = fields.Value.ToString();
                     }
                 }
+                //if product needs to be added to tesco cart
                 if (add)
                 {
                     addedProducts.Add(product);
-                    int result = PutRequest(id, query);
-                    if (result == -1)
+                    if (toAdd.ContainsKey(id))
                     {
-                        return -3;
+                        toAdd[id]++;
                     }
+                    else
+                    {
+                        toAdd.Add(id, 1);
+                    }
+                    
                 }
             }
-            return await UpdateProducts(addedProducts, orderId);
+            //makes a put request for all products that need to be added to the real tesco website cart
+            foreach(string key in toAdd.Keys)
+            {
+				int result = PutRequest(key, "null",toAdd[key],parameters);
+				if (result == -1)
+				{
+					return -3;
+				}
+			}
+			//Set all the added fields for all products to true
+			return await UpdateProducts(addedProducts, orderId);
         }
-        
-        public async static Task<int> AddOrder(string date)
+
+		/// <summary>
+		/// Task <c>AddOrder</c> adds an order to the database with the date <paramref name="date"/>
+		/// </summary>
+		public async static Task<int> AddOrder(string date)
         {
             try
             {
@@ -1621,20 +2037,25 @@ namespace TescoTest // Note: actual namespace depends on the project name.
                 await orderRef.SetAsync(data);
 
             }
-            catch (Exception)
+            catch (Exception e)
             {
+                Console.WriteLine(e);
                 return -1;
             }
             return 0;
         }
-        
-        public async static Task<List<List<string>>> FetchOrders()
+
+
+		/// <summary>
+		/// Task <c>FetchOrders</c> Fetches all orders from the database
+		/// </summary>
+		public async static Task<List<List<string>>> FetchOrders()
         {
 			List<List<string>> orders = new List<List<string>>();
 			try
             {
                 
-                Query ordersQuery = db.Collection("orders").WhereEqualTo("live", true);
+                Query ordersQuery = db.Collection("orders");
                 QuerySnapshot ordersQuerySnapshot = await ordersQuery.GetSnapshotAsync();
                 foreach (DocumentSnapshot documentSnapshot in ordersQuerySnapshot.Documents)
                 {
@@ -1675,13 +2096,24 @@ namespace TescoTest // Note: actual namespace depends on the project name.
             temp3.Add(temp2);
             return temp3;
         }
-    
-        public async static Task<List<List<string>>> FetchProducts(string orderId)
+
+		/// <summary>
+		/// Task <c>FetchProducts</c> Fetches all products with the orderId <paramref name="orderId"/> if a filtered name <paramref name="name"/> is provided then returns all products matching the name
+		/// </summary>
+		public async static Task<List<List<string>>> FetchProducts(string orderId,string name = "all")
         {
+            bool filtered = false;
+            if(name != "all")
+            {
+                filtered = true;
+            }
             List<object> products = await GetProducts(orderId);
             List<string> productsList = new List<string>();
             List<string> queryList = new List<string>();
             List<string> userList = new List<string>();
+            List<string> priceList= new List<string>();
+            List<string> nameList = new List<string>();
+            List<string> imageList = new List<string>();
             List<List<string>> finalProductsList = new List<List<string>>();
             if (products[0] == "null")
             {
@@ -1694,261 +2126,125 @@ namespace TescoTest // Note: actual namespace depends on the project name.
             foreach(object product in products)
             {
                 int gfjh = 0;
-                foreach(KeyValuePair<string,object>fields in (Dictionary<string,object>)product)
+                string tempName = "";
+                foreach (KeyValuePair<string, object> fields in (Dictionary<string, object>)product)
                 {
-                    if(fields.Key == "productId")
+                    if (fields.Key == "productId")
                     {
                         productsList.Add(fields.Value.ToString());
                     }
-                    if(fields.Key == "query")
+                    if (fields.Key == "query")
                     {
                         queryList.Add(fields.Value.ToString());
                     }
-                    if(fields.Key == "owner")
+                    if (fields.Key == "owner")
                     {
                         userList.Add(fields.Value.ToString());
+                        tempName = fields.Value.ToString();
                     }
-                }
-            }
-            
-            for(int i = 0; i < queryList.Count; i++)
-            {
-                List<List<string>> result = PostRequest(queryList[i]);
-                if (result != null)
-                {
-                    for (int j = 0; j < result[3].Count; j++)
+                    if (fields.Key == "image")
                     {
-                        if (productsList[i].Contains(result[3][j]) || result[3][j].Contains(productsList[i]))
-                        {
-                            
-                            List<string> temp2 = new List<string>();
-                            temp2.Add(result[0][j]);
-                            temp2.Add(result[1][j]);
-                            temp2.Add(result[2][j]);
-                            temp2.Add(result[3][j]);
-                            temp2.Add(result[4][j]);
-                            finalProductsList.Add(temp2);
-                            break;
-                        }
+                        imageList.Add(fields.Value.ToString());
+                    }
+                    if (fields.Key == "name")
+                    {
+                        nameList.Add(fields.Value.ToString());
+                        
+                    }
+                    if(fields.Key == "price")
+                    {
+                        priceList.Add(fields.Value.ToString());
                     }
                 }
-                else
+                if (filtered)
                 {
-                    List<List<string>> error = new List<List<string>>();
-                    List<string> error1 = new List<string>();
-                    error1.Add("-1");
-                    error.Add(error1);
-                    return error;
-
+                    // if filtered is true and name doesnt match with the filtered name then remove product 
+                    Console.WriteLine("NAME: " + name + "  tempName: " + tempName);
+                    if(tempName != name)
+                    {
+                        productsList.RemoveAt(productsList.Count - 1);
+                        queryList.RemoveAt(queryList.Count - 1);
+                        userList.RemoveAt(userList.Count - 1);
+                        imageList.RemoveAt(imageList.Count - 1);
+                        nameList.RemoveAt(nameList.Count - 1);
+                        priceList.RemoveAt(priceList.Count - 1);
+                    }
                 }
             }
-            finalProductsList.Add(userList);
+			finalProductsList.Add(userList);
+			finalProductsList.Add(priceList);
+			finalProductsList.Add(productsList);
+            finalProductsList.Add(nameList);
+            finalProductsList.Add(imageList); 
+            
+            
+            
             return finalProductsList;
             
         }
 
-        //Extracts the products and queries into two lists from the long string stored in database
-        /*  public static List<List<string>> ExtractProducts(string products,bool wantName,string name)
-          {
-              List<string> productsList = new List<string>();
-              List<string> queryList = new List<string>();
-              List<string> priceList = new List<string>();
-              List<string> userList = new List<string>();
-              bool canAdd = true;
-              string temp = "";
-              bool idFound = false;
-              bool first = false;
-              bool second = false;
-              bool third = false;
-              bool toRemove = false;
-              foreach (char c in products)
-              {
-                  if (c.ToString() == ",")
-                  {
-                      queryList.Add(temp);
-                      temp = "";
-                      canAdd = true;
-                      temp = "";
-                      idFound = false;
-                      first = false;
-                      second = false;
-                      third = false;
-                      toRemove = false;
-                  }
-                  else if (canAdd)
-                  {
-                      if (!idFound)
-                      {
-                          try
-                          {
-                              int test = Convert.ToInt32(c.ToString());
-                              temp += c.ToString();
-
-
-                          }
-                          catch (Exception)
-                          {
-                              idFound = true;
-                              if (c.ToString() == "N" || c.ToString() == "Y")
-                              {
-                                  productsList.Add(temp);
-                              }
-                              temp = "";
-                          }
-                      }
-                      else
-                      {
-                          if (!first)
-                          {
-                              if (c.ToString() == ".")
-                              {
-                                  first = true;
-                              }
-                          }
-                          else
-                          {
-                              if (!second)
-                              {
-
-
-                                  if (c.ToString() == ".")
-                                  {
-                                      second = true;
-                                      if (wantName)
-                                      {
-                                          userList.Add(temp);
-                                          if (temp != name && name !="n/a")
-                                          {
-                                              productsList.RemoveAt(productsList.Count - 1);
-                                              toRemove = true;
-                                          }
-                                          temp = "";
-                                      }
-                                  }
-                                  else
-                                  {
-                                      if (wantName)
-                                      {
-                                          temp += c.ToString();
-
-                                      }
-                                  }
-                              }
-                              else
-                              {
-                                  if (!third)
-                                  {
-                                      if(c.ToString() == ".")
-                                      {
-                                          if (!toRemove)
-                                          {
-                                              priceList.Add(temp);
-                                          }
-                                          temp = "";
-                                          third = true;
-                                      }
-                                      else
-                                      {
-                                          temp += c.ToString();
-                                      }
-                                  }
-                                  else
-                                  {
-                                      if (c.ToString() == ".")
-                                      {
-                                          queryList.Add(temp);
-                                          temp = "";
-                                      }
-                                      else
-                                      {
-                                          temp += c.ToString();
-                                      }
-
-
-                                  }
-                              }
-
-                          }
-                      }
-
-                  }
-              }
-              queryList.Add(temp);
-              List<List<string>> result = new List<List<string>>();
-              result.Add(productsList);
-              result.Add(queryList);
-              result.Add(priceList);
-              result.Add(userList);
-              return result;
-          }
-
-          */
-        public async static Task<int> RemoveProduct(float price, int productId, string orderId, string userId)
+		/// <summary>
+		/// Task <c>RemoveProduct</c> removes a product from an order as long as the userId <paramref name="userId"/> is the owner of the product
+		/// </summary>
+		public async static Task<int> RemoveProduct(float price, int productId, string orderId, string userId)
         {
             List<object> products = await GetProducts(orderId);
             double totalPrice = double.Parse(await GetPrice(orderId));
+            bool live = await GetLive(orderId);
+            if (!live)
+            {
+                return -1;
+            }
             totalPrice -= price;
             totalPrice = Math.Round(totalPrice, 2);
-            object dataToDelete = null;
+            int originalLength = products.Count;
             try
             {
-                Query ordersQuery = db.Collection("orders").WhereEqualTo("live", true);
-                QuerySnapshot ordersQuerySnapshot = await ordersQuery.GetSnapshotAsync();
-                foreach (DocumentSnapshot documentSnapshot in ordersQuerySnapshot.Documents)
+
+                int uhdfjdf = 0;
+                for(int i = 0; i<products.Count; i++)
                 {
-                    if (dataToDelete != null)
+                    object product = (object)products[i];
+
+					if (originalLength != products.Count)
                     {
                         break;
                     }
-                    if (documentSnapshot.Id == orderId)
+                    string owner = "";
+                    object tempProduct = null;
+                    foreach (KeyValuePair<string, object> fields in (Dictionary<string,object>)product)
                     {
-                        Dictionary<string, object> users = documentSnapshot.ToDictionary();
-                        foreach (KeyValuePair<string, object> pair in users)
+                        if (fields.Key == "productId")
                         {
-                            if (dataToDelete != null)
+                            if (int.Parse(fields.Value.ToString()) == productId)
                             {
-                                break;
-                            }
-                            if (pair.Key == "products")
-                            {
-                                List<object> productsTemp = (List<object>)pair.Value;
-                                int uhdfjdf = 0;
-                                foreach (Dictionary<string, object> product in productsTemp)
-                                {
-                                    if (dataToDelete != null)
-                                    {
-                                        break;
-                                    }
-                                    string owner = "";
-                                    object tempProduct = null;
-                                    foreach (KeyValuePair<string, object> fields in product)
-                                    {
-                                        if (fields.Key == "productId")
-                                        {
-                                            if (int.Parse(fields.Value.ToString()) == productId)
-                                            {
-                                                tempProduct = product; 
-                                            }
-                                        }
-                                        if(fields.Key == "owner")
-                                        {
-                                            owner = fields.Value.ToString();
-                                        }
-                                    }
-                                    if(owner == userId)
-                                    {
-                                        dataToDelete = product;
-                                        break;
-                                    }
-                                }
+                                tempProduct = product;
                             }
                         }
+                        if (fields.Key == "owner")
+                        {
+                            owner = fields.Value.ToString();
+                        }
+                    }
+                    if (owner == userId && tempProduct != null)
+                    {
+                         products.RemoveAt(i);
+                        break;
                     }
                 }
-                if (dataToDelete != null)
+
+
+
+            
+                if (originalLength != products.Count)
                 {
                     DocumentReference orderRef = db.Collection("orders").Document(orderId);
-                    await orderRef.UpdateAsync("products", FieldValue.ArrayRemove(dataToDelete));
+					Dictionary<string, object> fieldDelete = new Dictionary<string, object>
+				{
+					{"products",FieldValue.Delete }
+				};
+                    await orderRef.UpdateAsync(fieldDelete);
+					await orderRef.UpdateAsync("products", products);
                     await orderRef.UpdateAsync("total", totalPrice.ToString());
                 }
                 else
@@ -1963,8 +2259,11 @@ namespace TescoTest // Note: actual namespace depends on the project name.
             return 0;
 
         }
-    
-        public async static Task<double> GetUserPrice(string userId,string orderId)
+
+		/// <summary>
+		/// Task <c>GetUserPrice</c> Fetchs the total from an order <paramref name="orderId"/> for the user <paramref name="userId"/>
+		/// </summary>
+		public async static Task<double> GetUserPrice(string userId,string orderId)
         {
             List<object> products = await GetProducts(orderId);
             double price = 0.00;
@@ -1999,5 +2298,172 @@ namespace TescoTest // Note: actual namespace depends on the project name.
             
 
         }
+
+		/// <summary>
+		/// Task <c>CheckAdmin</c> checks if a user <paramref name="userId"/> is an admin
+		/// </summary>
+		public async static Task<bool> CheckAdmin(string userId)
+        {
+            Console.WriteLine(userId);
+			Query capitalQuery = db.Collection("users").WhereEqualTo("real", true);
+			QuerySnapshot capitalQuerySnapshot = await capitalQuery.GetSnapshotAsync();
+			foreach (DocumentSnapshot documentSnapshot in capitalQuerySnapshot.Documents)
+			{
+				Dictionary<string, object> city = documentSnapshot.ToDictionary();
+                bool user = false;
+				foreach (KeyValuePair<string, object> pair in city)
+				{
+					//Console.WriteLine("{0}: {1}", pair.Key, pair.Value);
+					if (pair.Key == "username")
+					{
+						if (pair.Value.ToString() == userId)
+						{
+                            user = true;
+						}
+					}
+                    if(pair.Key == "admin" && user)
+                    {
+						//Console.WriteLine("RIRSJUIESISI");
+						if (pair.Value.ToString() == "True")
+                        {
+                            Console.WriteLine("RIRSJUIESISI2");
+                            return true;
+                        }
+                        else
+                        {
+							Console.WriteLine("RIRSJUIESISI3: "+pair.Value.ToString());
+							return false;
+                        }
+                    }
+				}
+			}
+            return false;
+			
+		}
+
+		/// <summary>
+		/// Task <c>UpdateProduct</c> adds a product from just its productId <paramref name="productId"/> to order <paramref name="orderId"/>
+		/// </summary>
+		public async static Task<int> UpdateProduct(string query, string productId,string orderId,string userId)
+        {
+            List<List<string>> products = PostRequest(query);
+            int index = 0;
+            foreach (string id in products[3])
+            {
+                Console.WriteLine(id);
+                if(id == productId)
+                {
+                    break;
+                }
+                index++;
+            }
+            if(index == products[3].Count)
+            {
+                return -1;
+            }
+            Console.WriteLine(index);
+			float price = float.Parse(products[1][index]);
+			string finalPrice = price.ToString();
+			bool hasDot = false;
+			int count = 0;
+			foreach (char c in finalPrice)
+			{
+				if (c.ToString() == ".")
+				{
+					hasDot = true;
+				}
+				else if (hasDot)
+				{
+					count++;
+				}
+			}
+			if (!hasDot)
+			{
+				finalPrice += ".00";
+			}
+			else if (count != 2)
+			{
+				finalPrice += "0";
+			}
+            string finalPrice2 = finalPrice;
+			if (products[4][index] != "null" && products[4][index] != "null2")
+			{
+                finalPrice2 = products[4][index];
+
+			}
+			
+			
+            int result = await AddToOrderV2(Convert.ToInt32(products[3][index]),float.Parse(finalPrice2), orderId, userId, query, products[0][index], products[2][index]);
+            return result;
+        }
+
+
+		/// <summary>
+		/// Task <c>AddOrder</c> Fetches all the people who have an item on order <paramref name="orderId"/>
+		/// </summary>
+		public async static Task<List<string>> FetchNames(string orderId)
+        {
+			List<object> products = await GetProducts(orderId);
+			double total = 0;
+			Dictionary<string, double> people = new Dictionary<string, double>();
+			if (products[0] == "null")
+			{
+				return new List<string> { "-1"};
+			}
+			try
+			{
+				List<object> addedProducts = new List<object>();
+				for (int i = 0; i < products.Count; i++)
+				{
+					object product = (object)products[i];
+					double price = 0;
+					string owner = "";
+					foreach (KeyValuePair<string, object> fields in (Dictionary<string, object>)product)
+					{
+
+						if (fields.Key == "owner")
+						{
+							owner = fields.Value.ToString();
+						}
+					}
+					try
+					{
+						
+						people[owner] += 0;
+					}
+					catch (Exception)
+					{
+						people.Add(owner, 0);
+					}
+				}
+			}
+			catch (Exception)
+			{
+				return new List<string> { "-1"};
+			}
+            List<string> final = new List<string>();
+			foreach (string person in people.Keys)
+			{
+                final.Add(person);
+			}
+			return final;
+		}
+
+
+		/// <summary>
+		/// Task <c>AddDelivery</c> adds delivery fees for user <paramref name="userId"/>
+		/// </summary>
+		public async static Task<int> AddDelivery(string orderId,string userId,float price)
+        {
+            if (price > 0)
+            {
+				//https:susididfidfdodoidfd used so no image is rendered on frontend
+				return await AddToOrderV2(-1, price, orderId, userId, "n/a", "Delivery Fee", "https:susididfidfdodoidfd.com");
+            }
+            else
+            {
+				return await AddToOrderV2(-1, price, orderId, userId, "n/a", "Discount Fee", "https:susididfidfdodoidfd.com");
+			}
+		}
     }
 }

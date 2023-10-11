@@ -1,25 +1,20 @@
 {
   "format": 1,
   "restore": {
-    "C:\\Users\\Callu\\Documents\\University\\TescoTest\\TescoTest.csproj": {}
+    "C:\\Users\\Callu\\Documents\\MyDocuments\\University\\Year1\\TescoTest\\TescoTest.csproj": {}
   },
   "projects": {
-    "C:\\Users\\Callu\\Documents\\University\\TescoTest\\TescoTest.csproj": {
+    "C:\\Users\\Callu\\Documents\\MyDocuments\\University\\Year1\\TescoTest\\TescoTest.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "C:\\Users\\Callu\\Documents\\University\\TescoTest\\TescoTest.csproj",
+        "projectUniqueName": "C:\\Users\\Callu\\Documents\\MyDocuments\\University\\Year1\\TescoTest\\TescoTest.csproj",
         "projectName": "TescoTest",
-        "projectPath": "C:\\Users\\Callu\\Documents\\University\\TescoTest\\TescoTest.csproj",
+        "projectPath": "C:\\Users\\Callu\\Documents\\MyDocuments\\University\\Year1\\TescoTest\\TescoTest.csproj",
         "packagesPath": "C:\\Users\\Callu\\.nuget\\packages\\",
-        "outputPath": "C:\\Users\\Callu\\Documents\\University\\TescoTest\\obj\\",
+        "outputPath": "C:\\Users\\Callu\\Documents\\MyDocuments\\University\\Year1\\TescoTest\\obj\\",
         "projectStyle": "PackageReference",
-        "fallbackFolders": [
-          "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages",
-          "C:\\Program Files\\dotnet\\sdk\\NuGetFallbackFolder"
-        ],
         "configFilePaths": [
           "C:\\Users\\Callu\\AppData\\Roaming\\NuGet\\NuGet.Config",
-          "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.FallbackLocation.config",
           "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.Offline.config"
         ],
         "originalTargetFrameworks": [
@@ -72,39 +67,39 @@
           "downloadDependencies": [
             {
               "name": "Microsoft.AspNetCore.App.Runtime.linux-x64",
-              "version": "[7.0.0, 7.0.0]"
+              "version": "[7.0.10, 7.0.10]"
             },
             {
               "name": "Microsoft.AspNetCore.App.Runtime.osx-x64",
-              "version": "[7.0.0, 7.0.0]"
+              "version": "[7.0.10, 7.0.10]"
             },
             {
               "name": "Microsoft.AspNetCore.App.Runtime.win-x64",
-              "version": "[7.0.0, 7.0.0]"
+              "version": "[7.0.10, 7.0.10]"
             },
             {
               "name": "Microsoft.NETCore.App.Host.linux-x64",
-              "version": "[7.0.0, 7.0.0]"
+              "version": "[7.0.10, 7.0.10]"
             },
             {
               "name": "Microsoft.NETCore.App.Host.osx-x64",
-              "version": "[7.0.0, 7.0.0]"
+              "version": "[7.0.10, 7.0.10]"
             },
             {
               "name": "Microsoft.NETCore.App.Runtime.linux-x64",
-              "version": "[7.0.0, 7.0.0]"
+              "version": "[7.0.10, 7.0.10]"
             },
             {
               "name": "Microsoft.NETCore.App.Runtime.osx-x64",
-              "version": "[7.0.0, 7.0.0]"
+              "version": "[7.0.10, 7.0.10]"
             },
             {
               "name": "Microsoft.NETCore.App.Runtime.win-x64",
-              "version": "[7.0.0, 7.0.0]"
+              "version": "[7.0.10, 7.0.10]"
             },
             {
               "name": "Microsoft.WindowsDesktop.App.Runtime.win-x64",
-              "version": "[7.0.0, 7.0.0]"
+              "version": "[7.0.10, 7.0.10]"
             }
           ],
           "frameworkReferences": {
@@ -112,7 +107,7 @@
               "privateAssets": "all"
             }
           },
-          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\7.0.100\\RuntimeIdentifierGraph.json"
+          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\7.0.400\\RuntimeIdentifierGraph.json"
         }
       },
       "runtimes": {
@@ -123,6 +118,9 @@
           "#import": []
         },
         "ubuntu.16.04-x64": {
+          "#import": []
+        },
+        "ubuntu.18.04-x64": {
           "#import": []
         },
         "ubuntu.20.04-x64": {
